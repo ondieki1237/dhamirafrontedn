@@ -5,10 +5,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { username, password } = body
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL
-    if (!baseUrl) {
+    const rawBaseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL
+    if (!rawBaseUrl) {
       return NextResponse.json({ message: "API base URL not configured" }, { status: 500 })
     }
+    const baseUrl = rawBaseUrl.replace(/\/$/, "")
 
     // Call backend API
     const response = await fetch(`${baseUrl}/api/auth/login`, {
