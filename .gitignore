@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.pnp.cjs
+.pnp.loader.mjs
+
+# Build output
+.next/
+out/
+build/
+
+# Package managers
+*.log
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+npm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Testing
+coverage/
+.nyc_output/
+
+# Editor
+.DS_Store
+.vscode/
+*.swp
+*.swo
+
+# Misc
+.turbo/
+.vercel/
+dist/
