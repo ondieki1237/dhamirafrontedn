@@ -6,7 +6,7 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Plus, Filter, Download } from "lucide-react"
-import { apiGet } from "@/lib/api"
+import { apiGet, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
 type ClientItem = {
@@ -23,6 +23,8 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<ClientItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const user = getCurrentUser()
+  const canOnboard = user?.role && ["super_admin", "initiator_admin", "approver_admin", "loan_officer"].includes(user.role)
 
   useEffect(() => {
     let mounted = true
@@ -52,13 +54,15 @@ export default function ClientsPage() {
             <h1 className="text-3xl font-bold text-foreground">All Clients</h1>
             <p className="text-muted-foreground mt-1">Manage your client database</p>
           </div>
-          <Button
-            onClick={() => router.push("/clients/new")}
-            className="gap-2 bg-secondary text-white neumorphic neumorphic-hover border-0"
-          >
-            <Plus className="w-4 h-4" />
-            New Client
-          </Button>
+          {canOnboard && (
+            <Button
+              onClick={() => router.push("/clients/new")}
+              className="gap-2 bg-secondary text-white neumorphic neumorphic-hover border-0"
+            >
+              <Plus className="w-4 h-4" />
+              New Client
+            </Button>
+          )}
         </div>
 
         <div className="flex gap-3">

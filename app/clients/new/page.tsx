@@ -3,10 +3,19 @@
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { apiGet, apiPostFormData } from "@/lib/api"
+import { apiGet, apiPostFormData, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
 export default function NewClientPage() {
@@ -14,6 +23,7 @@ export default function NewClientPage() {
   const { toast } = useToast()
   const [groups, setGroups] = useState<{ _id: string; name: string }[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
   const [form, setForm] = useState({
     name: "",
     nationalId: "",
@@ -27,6 +37,7 @@ export default function NewClientPage() {
     groupId: "",
     photo: null as File | null,
   })
+  const [blocked, setBlocked] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -38,6 +49,11 @@ export default function NewClientPage() {
         // optional; groups select can remain empty
       }
     })()
+
+    const user = getCurrentUser()
+    if (!user?.role || !["super_admin", "initiator_admin", "approver_admin", "loan_officer"].includes(user.role)) {
+      setBlocked(true)
+    }
     return () => {
       mounted = false
     }
@@ -46,6 +62,10 @@ export default function NewClientPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      if (blocked) {
+        toast({ title: "Not allowed", description: "You do not have permission to onboard clients." })
+        return
+      }
       setSubmitting(true)
       const fd = new FormData()
       Object.entries(form).forEach(([k, v]) => {
@@ -56,7 +76,7 @@ export default function NewClientPage() {
 
       const res = await apiPostFormData<{ message: string }>("/api/clients/onboard", fd)
       toast({ title: "Success", description: res?.message || "Client onboarded successfully" })
-      router.push("/clients")
+      setShowSuccess(true)
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to onboard client" })
     } finally {
@@ -74,6 +94,7 @@ export default function NewClientPage() {
           </Button>
           <h1 className="text-3xl font-bold text-foreground">New Client</h1>
           <p className="text-muted-foreground mt-1">Add a new client to the system</p>
+          {blocked && <p className="text-sm text-destructive mt-2">You do not have permission to onboard clients.</p>}
         </div>
 
         <Card className="neumorphic p-8 bg-card border-0">
@@ -153,6 +174,7 @@ export default function NewClientPage() {
                   onChange={(e) => setForm({ ...form, businessType: e.target.value })}
                   className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
                   placeholder="Retail / Agriculture / Services"
+                  required
                 />
               </div>
               <div>
@@ -163,6 +185,7 @@ export default function NewClientPage() {
                   onChange={(e) => setForm({ ...form, businessLocation: e.target.value })}
                   className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
                   placeholder="Town / Area"
+                  required
                 />
               </div>
             </div>
@@ -176,6 +199,7 @@ export default function NewClientPage() {
                   onChange={(e) => setForm({ ...form, nextOfKinName: e.target.value })}
                   className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
                   placeholder="Full name"
+                  required
                 />
               </div>
               <div>
@@ -186,6 +210,7 @@ export default function NewClientPage() {
                   onChange={(e) => setForm({ ...form, nextOfKinPhone: e.target.value })}
                   className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
                   placeholder="+254 7xx xxx xxx"
+                  required
                 />
               </div>
               <div>
@@ -196,6 +221,7 @@ export default function NewClientPage() {
                   onChange={(e) => setForm({ ...form, nextOfKinRelationship: e.target.value })}
                   className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
                   placeholder="Sister / Brother / Spouse"
+                  required
                 />
               </div>
             </div>
@@ -207,6 +233,7 @@ export default function NewClientPage() {
                 accept="image/*"
                 onChange={(e) => setForm({ ...form, photo: e.target.files?.[0] || null })}
                 className="w-full px-4 py-2 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none"
+                required
               />
             </div>
 
@@ -221,6 +248,26 @@ export default function NewClientPage() {
           </form>
         </Card>
       </div>
+
+      <AlertDialog
+        open={showSuccess}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowSuccess(false)
+            router.push("/clients")
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Client onboarded</AlertDialogTitle>
+            <AlertDialogDescription>The client has been saved successfully.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => router.push("/clients")}>Close</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   )
 }

@@ -9,12 +9,18 @@ import { useEffect, useState } from "react"
 import { apiGet, apiPostJson } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
+type Loan = {
+  _id: string
+  status: string
+}
+
 export default function AddGuarantorPage() {
   const router = useRouter()
   const params = useParams()
   const { toast } = useToast()
   const loanId = params.id as string
 
+  const [loan, setLoan] = useState<Loan | null>(null)
   const [clients, setClients] = useState<{ _id: string; name: string; nationalId: string }[]>([])
   const [form, setForm] = useState({
     clientId: "",
@@ -23,21 +29,37 @@ export default function AddGuarantorPage() {
     photoUrl: "",
   })
   const [submitting, setSubmitting] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let mounted = true
     ;(async () => {
       try {
-        const data = await apiGet<{ _id: string; name: string; nationalId: string }[]>("/api/clients")
-        if (mounted) setClients(data)
-      } catch (e) {
-        // ignore; form still usable
+        const [loanData, clientsData] = await Promise.all([
+          apiGet<Loan>(`/api/loans/${loanId}`),
+          apiGet<{ _id: string; name: string; nationalId: string }[]>("/api/clients")
+        ])
+        if (mounted) {
+          if (loanData.status !== "initiated") {
+            toast({ title: "Error", description: "Guarantors can only be added to initiated loans" })
+            router.push(`/loans/${loanId}`)
+            return
+          }
+          setLoan(loanData)
+          setClients(clientsData)
+          setLoading(false)
+        }
+      } catch (e: any) {
+        if (mounted) {
+          toast({ title: "Error", description: e?.message || "Failed to load data" })
+          router.push("/loans")
+        }
       }
     })()
     return () => {
       mounted = false
     }
-  }, [])
+  }, [loanId, router, toast])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -57,6 +79,16 @@ export default function AddGuarantorPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-4xl mx-auto">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (

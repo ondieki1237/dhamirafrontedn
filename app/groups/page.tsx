@@ -74,6 +74,7 @@ export default function GroupsPage() {
               key={group._id}
               className="neumorphic p-6 bg-card border-0 hover:shadow-lg transition-all duration-200 cursor-pointer"
               style={{ animationDelay: `${index * 50}ms` }}
+              onClick={() => router.push(`/groups/${group._id}`)}
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
@@ -112,7 +113,7 @@ export default function GroupsPage() {
                 </div>
               </div>
 
-              <Button variant="outline" className="w-full mt-4 bg-transparent">
+              <Button variant="outline" className="w-full mt-4 bg-transparent" onClick={() => router.push(`/groups/${group._id}`)}>
                 View Details
               </Button>
             </Card>

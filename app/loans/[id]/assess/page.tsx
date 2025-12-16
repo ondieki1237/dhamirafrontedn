@@ -5,9 +5,14 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import { useRouter, useParams } from "next/navigation"
-import { useState } from "react"
-import { apiPostJson } from "@/lib/api"
+import { useState, useEffect } from "react"
+import { apiPostJson, apiGet } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+
+type Loan = {
+  _id: string
+  status: string
+}
 
 export default function CreditAssessmentPage() {
   const router = useRouter()
@@ -15,6 +20,7 @@ export default function CreditAssessmentPage() {
   const { toast } = useToast()
   const loanId = params.id as string
 
+  const [loan, setLoan] = useState<Loan | null>(null)
   const [form, setForm] = useState({
     character: 3,
     capacity: 3,
@@ -24,8 +30,35 @@ export default function CreditAssessmentPage() {
     officerNotes: "",
   })
   const [submitting, setSubmitting] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   const totalScore = form.character + form.capacity + form.capital + form.collateral + form.conditions
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const loanData = await apiGet<Loan>(`/api/loans/${loanId}`)
+        if (mounted) {
+          if (loanData.status !== "initiated") {
+            toast({ title: "Error", description: "Credit assessment can only be done on initiated loans" })
+            router.push(`/loans/${loanId}`)
+            return
+          }
+          setLoan(loanData)
+          setLoading(false)
+        }
+      } catch (e: any) {
+        if (mounted) {
+          toast({ title: "Error", description: e?.message || "Failed to load loan" })
+          router.push("/loans")
+        }
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [loanId, router, toast])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -73,6 +106,16 @@ export default function CreditAssessmentPage() {
           </div>
         </div>
       </Card>
+    )
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-4xl mx-auto">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </DashboardLayout>
     )
   }
 

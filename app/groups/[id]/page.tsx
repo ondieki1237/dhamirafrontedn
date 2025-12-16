@@ -1,0 +1,225 @@
+"use client"
+
+import { DashboardLayout } from "@/components/dashboard-layout"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { ArrowLeft, Save } from "lucide-react"
+import { useRouter, useParams } from "next/navigation"
+import { useEffect, useState } from "react"
+import { apiGet, apiPutJson } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
+
+// Types kept loose to be resilient to backend changes
+type Group = {
+  _id: string
+  name: string
+  meetingDay?: string
+  meetingTime?: string
+  loanOfficerId?: string | { _id: string; username?: string; name?: string }
+  members?: Array<{ name?: string; nationalId?: string; _id?: string }>
+  signatories?: Array<{ role: string; memberNationalId: string }>
+}
+
+export default function GroupDetailPage() {
+  const router = useRouter()
+  const params = useParams()
+  const { toast } = useToast()
+  const groupId = params.id as string
+
+  const [group, setGroup] = useState<Group | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    chairperson: "",
+    secretary: "",
+    treasurer: "",
+  })
+
+  const fetchGroup = async () => {
+    try {
+      setLoading(true)
+      // Prefer detail endpoint; fallback to list if not available
+      let data: Group | null = null
+      try {
+        data = await apiGet<Group>(`/api/groups/${groupId}`)
+      } catch {
+        const list = await apiGet<Group[]>(`/api/groups`)
+        data = list.find((g) => g._id === groupId) || null
+      }
+      if (!data) {
+        toast({ title: "Not found", description: "Group not found" })
+        router.push("/groups")
+        return
+      }
+      setGroup(data)
+
+      // If existing signatories, prefill
+      const existing = (data.signatories || []).reduce<Record<string, string>>((acc, s) => {
+        acc[s.role] = s.memberNationalId
+        return acc
+      }, {})
+      setForm((f) => ({
+        chairperson: existing.chairperson || f.chairperson,
+        secretary: existing.secretary || f.secretary,
+        treasurer: existing.treasurer || f.treasurer,
+      }))
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to load group" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchGroup()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId])
+
+  const onAssign = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      setSaving(true)
+      const payload = {
+        signatoryAssignments: [
+          { role: "chairperson", memberNationalId: form.chairperson },
+          { role: "secretary", memberNationalId: form.secretary },
+          { role: "treasurer", memberNationalId: form.treasurer },
+        ],
+      }
+      await apiPutJson(`/api/groups/${groupId}/assign-signatories`, payload)
+      toast({ title: "Signatories assigned" })
+      fetchGroup()
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to assign signatories" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-5xl mx-auto">
+          <p className="text-muted-foreground">Loading group…</p>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (!group) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-5xl mx-auto">
+          <p className="text-destructive">Group not found</p>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  const officerName = typeof group.loanOfficerId === "string" ? group.loanOfficerId : (group.loanOfficerId?.name || group.loanOfficerId?.username || group.loanOfficerId?._id || "—")
+
+  return (
+    <DashboardLayout>
+      <div className="max-w-5xl mx-auto space-y-6">
+        <div className="mb-6">
+          <Button variant="ghost" onClick={() => router.push("/groups")} className="mb-4 gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Groups
+          </Button>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">{group.name}</h1>
+              <p className="text-muted-foreground mt-1">Group Details & Signatories</p>
+            </div>
+            <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20">
+              {group._id}
+            </Badge>
+          </div>
+        </div>
+
+        <Card className="neumorphic p-6 bg-card border-0">
+          <h2 className="text-xl font-bold mb-4">Overview</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <p className="text-sm text-muted-foreground">Meeting Day</p>
+              <p className="font-semibold">{group.meetingDay || "—"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Meeting Time</p>
+              <p className="font-semibold">{group.meetingTime || "—"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Loan Officer</p>
+              <p className="font-semibold">{officerName}</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="neumorphic p-6 bg-card border-0">
+          <h2 className="text-xl font-bold mb-4">Assign Signatories</h2>
+          <form className="space-y-6" onSubmit={onAssign}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-2">Chairperson (National ID)</label>
+                <input
+                  type="text"
+                  value={form.chairperson}
+                  onChange={(e) => setForm({ ...form, chairperson: e.target.value })}
+                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary"
+                  placeholder="e.g., 12345678"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-2">Secretary (National ID)</label>
+                <input
+                  type="text"
+                  value={form.secretary}
+                  onChange={(e) => setForm({ ...form, secretary: e.target.value })}
+                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary"
+                  placeholder="e.g., 87654321"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-2">Treasurer (National ID)</label>
+                <input
+                  type="text"
+                  value={form.treasurer}
+                  onChange={(e) => setForm({ ...form, treasurer: e.target.value })}
+                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary"
+                  placeholder="e.g., 11223344"
+                  required
+                />
+              </div>
+            </div>
+            <div className="flex gap-4 justify-end">
+              <Button type="button" variant="outline" onClick={() => router.back()} className="px-8 py-3">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving} className="px-8 py-3 bg-secondary text-white neumorphic neumorphic-hover border-0 gap-2">
+                <Save className="w-4 h-4" />
+                {saving ? "Saving..." : "Assign Signatories"}
+              </Button>
+            </div>
+          </form>
+        </Card>
+
+        {Array.isArray(group.members) && group.members.length > 0 && (
+          <Card className="neumorphic p-6 bg-card border-0">
+            <h2 className="text-xl font-bold mb-4">Members</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {group.members.map((m, idx) => (
+                <div key={(m._id as string) || idx} className="p-4 rounded-xl bg-muted/30">
+                  <p className="font-semibold">{m.name || "—"}</p>
+                  <p className="text-sm text-muted-foreground">ID: {m.nationalId || "—"}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+      </div>
+    </DashboardLayout>
+  )
+}

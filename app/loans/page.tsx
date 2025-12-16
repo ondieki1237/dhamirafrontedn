@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Plus, Filter, Download } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { apiGet } from "@/lib/api"
+import { apiGet, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
 type LoanItem = {
@@ -34,6 +34,8 @@ export default function LoansPage() {
   const [loans, setLoans] = useState<LoanItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const user = getCurrentUser()
+  const canInitiate = user?.role && ["initiator_admin", "loan_officer"].includes(user.role)
 
   useEffect(() => {
     let mounted = true
@@ -63,13 +65,15 @@ export default function LoansPage() {
             <h1 className="text-3xl font-bold text-foreground">All Loans</h1>
             <p className="text-muted-foreground mt-1">Manage and track all loan applications</p>
           </div>
-          <Button
-            onClick={() => router.push("/loans/initiate")}
-            className="gap-2 bg-primary text-white neumorphic neumorphic-hover border-0"
-          >
-            <Plus className="w-4 h-4" />
-            New Loan
-          </Button>
+          {canInitiate && (
+            <Button
+              onClick={() => router.push("/loans/initiate")}
+              className="gap-2 bg-primary text-white neumorphic neumorphic-hover border-0"
+            >
+              <Plus className="w-4 h-4" />
+              New Loan
+            </Button>
+          )}
         </div>
 
         <div className="flex gap-3">
