@@ -18,6 +18,7 @@ export default function InitiateLoanPage() {
     type: "business",
     amount: "",
     term: "6",
+    purpose: "",
   })
   const [submitting, setSubmitting] = useState(false)
 
@@ -114,32 +115,24 @@ export default function InitiateLoanPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Interest Rate (%)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-                  placeholder="12.5"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Duration (months)</label>
-                <input
-                  type="number"
-                  value={form.term}
-                  onChange={(e) => setForm({ ...form, term: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-                  placeholder="12"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-2">Duration (months)</label>
+              <input
+                type="number"
+                value={form.term}
+                onChange={(e) => setForm({ ...form, term: e.target.value })}
+                className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                placeholder="6"
+                required
+              />
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-foreground mb-2">Purpose</label>
               <textarea
                 rows={4}
+                value={form.purpose}
+                onChange={(e) => setForm({ ...form, purpose: e.target.value })}
                 className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                 placeholder="Describe the purpose of the loan..."
               />

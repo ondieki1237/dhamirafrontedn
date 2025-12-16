@@ -119,7 +119,7 @@ export default function LoansPage() {
                         </td>
                         <td className="py-4 px-4 text-muted-foreground">{created}</td>
                         <td className="py-4 px-4">
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => router.push(`/loans/${loan._id}`)}>
                             View
                           </Button>
                         </td>
