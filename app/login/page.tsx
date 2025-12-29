@@ -51,7 +51,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Left side - Image */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-primary to-secondary overflow-hidden">
         <div className="absolute inset-0 bg-[url('/professional-african-businesswoman-working-with-la.jpg')] bg-cover bg-center opacity-20" />
@@ -72,29 +72,29 @@ export default function LoginPage() {
       </div>
 
       {/* Right side - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-background">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 bg-background">
         <div className="w-full max-w-md">
-          <div className="mb-8 animate-fade-in">
+          <div className="mb-6 sm:mb-8 animate-fade-in">
             <img
               src="/logo-imara.png"
               alt="Dhamira Imara Capital"
-              className="w-24 h-24 object-contain mx-auto mb-6 lg:hidden"
+              className="w-20 h-20 sm:w-24 sm:h-24 object-contain mx-auto mb-4 sm:mb-6 lg:hidden"
             />
-            <h2 className="text-3xl font-bold text-foreground text-center mb-2">Welcome Back</h2>
-            <p className="text-muted-foreground text-center">Sign in to your admin account</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground text-center mb-2">Welcome Back</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground text-center">Sign in to your admin account</p>
           </div>
 
           {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl animate-fade-in">
+            <div className="mb-4 p-3 sm:p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl animate-fade-in text-xs sm:text-sm">
               {error}
             </div>
           )}
 
           <form className="space-y-6 animate-slide-up" style={{ animationDelay: "100ms" }} onSubmit={handleSubmit}>
-            <div className="neumorphic p-6 rounded-2xl">
+            <div className="neumorphic p-4 sm:p-6 rounded-2xl">
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="username" className="block text-sm font-semibold text-foreground mb-2">
+                  <label htmlFor="username" className="block text-xs sm:text-sm font-semibold text-foreground mb-2">
                     Username
                   </label>
                   <input
@@ -103,13 +103,13 @@ export default function LoginPage() {
                     placeholder="superadmin"
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                    className="w-full px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
                     required
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="password" className="block text-sm font-semibold text-foreground mb-2">
+                  <label htmlFor="password" className="block text-xs sm:text-sm font-semibold text-foreground mb-2">
                     Password
                   </label>
                   <input
@@ -118,7 +118,7 @@ export default function LoginPage() {
                     placeholder="Enter your password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                    className="w-full px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
                     required
                   />
                 </div>
@@ -126,9 +126,9 @@ export default function LoginPage() {
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" className="w-4 h-4 rounded border-gray-300" />
-                    <span className="text-sm text-muted-foreground">Remember me</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground">Remember me</span>
                   </label>
-                  <a href="#" className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
+                  <a href="#" className="text-xs sm:text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
                     Forgot password?
                   </a>
                 </div>
@@ -138,7 +138,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-primary text-white font-semibold rounded-xl neumorphic neumorphic-hover neumorphic-active transition-all border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 sm:py-4 bg-primary text-white font-semibold rounded-xl neumorphic neumorphic-hover neumorphic-active transition-all border-0 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>

@@ -8,17 +8,25 @@ import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { apiGet, apiPostJson } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { useSearchParams } from "next/navigation"
 
 export default function InitiateLoanPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const search = useSearchParams()
   const [clients, setClients] = useState<{ name: string; nationalId: string }[]>([])
+  const [groupInfo, setGroupInfo] = useState<any | null>(null)
+  const [groupLoading, setGroupLoading] = useState(false)
+  const [groupInactiveReason, setGroupInactiveReason] = useState<string | null>(null)
   const [form, setForm] = useState({
     clientNationalId: "",
-    type: "business",
-    amount: "",
+    groupId: "",
+    product: "business",
+    amountKES: "",
     term: "6",
+    interestRatePercent: "",
     purpose: "",
+    guarantors: [] as Array<{ clientNationalId: string; relationship: string; idCopyUrl?: string; photoUrl?: string; hasRepaidFafaBefore?: boolean }>,
   })
   const [submitting, setSubmitting] = useState(false)
 
@@ -37,21 +45,73 @@ export default function InitiateLoanPage() {
     }
   }, [])
 
+  useEffect(() => {
+    // Prefill from query params
+    const clientNationalId = search?.get("clientNationalId")
+    const groupId = search?.get("groupId")
+    if (clientNationalId) setForm((f) => ({ ...f, clientNationalId }))
+    if (groupId) setForm((f) => ({ ...f, groupId }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const gid = form.groupId
+    if (!gid) {
+      setGroupInfo(null)
+      setGroupInactiveReason(null)
+      return
+    }
+    let mounted = true
+    ;(async () => {
+      try {
+        setGroupLoading(true)
+        const g = await apiGet(`/api/groups/${gid}`)
+        if (!mounted) return
+        setGroupInfo(g)
+        // If group explicitly carries an inactive reason field, expose it
+        const reason = (g && (g.inactiveReason || g.reason || g.message)) || null
+        if (reason) setGroupInactiveReason(String(reason))
+        else setGroupInactiveReason(null)
+      } catch (err: any) {
+        // couldn't fetch group; clear info
+        if (!mounted) return
+        setGroupInfo(null)
+        setGroupInactiveReason(null)
+      } finally {
+        if (mounted) setGroupLoading(false)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [form.groupId])
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       setSubmitting(true)
-      const payload = {
-        clientNationalId: form.clientNationalId,
-        type: form.type,
-        amount: Number(form.amount),
-        term: Number(form.term),
+      const payload: any = {}
+      if (form.groupId) {
+        payload.groupId = form.groupId
+      } else {
+        payload.clientNationalId = form.clientNationalId
       }
+      payload.product = form.product
+      payload.amountKES = Number(form.amountKES)
+      payload.term = Number(form.term)
+      if (form.interestRatePercent) payload.interestRatePercent = Number(form.interestRatePercent)
+      if (form.purpose) payload.purpose = form.purpose
+      if (Array.isArray(form.guarantors) && form.guarantors.length > 0) payload.guarantors = form.guarantors
       await apiPostJson("/api/loans/initiate", payload)
       toast({ title: "Loan initiated" })
       router.push("/loans")
     } catch (e: any) {
-      toast({ title: "Error", description: e?.message || "Failed to initiate loan" })
+      const msg = e?.message || "Failed to initiate loan"
+      // detect backend structured error
+      if (msg.toLowerCase().includes("group not active") || msg.toLowerCase().includes("not_active") || msg.toLowerCase().includes("inactive")) {
+        setGroupInactiveReason(msg)
+      }
+      toast({ title: "Error", description: msg })
     } finally {
       setSubmitting(false)
     }
@@ -59,90 +119,126 @@ export default function InitiateLoanPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-6">
-          <Button variant="ghost" onClick={() => router.back()} className="mb-4 gap-2">
+      <div className="max-w-4xl mx-auto px-4 sm:px-0">
+        <div className="mb-4 sm:mb-6">
+          <Button variant="ghost" onClick={() => router.back()} className="mb-3 sm:mb-4 gap-2 h-8 sm:h-10">
             <ArrowLeft className="w-4 h-4" />
             Back
           </Button>
-          <h1 className="text-3xl font-bold text-foreground">Initiate Loan</h1>
-          <p className="text-muted-foreground mt-1">Start a new loan application</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Initiate Loan</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Start a new loan application</p>
         </div>
 
-        <Card className="neumorphic p-8 bg-card border-0">
-          <form className="space-y-6" onSubmit={onSubmit}>
+        <Card className="neumorphic p-4 sm:p-8 bg-card border-0">
+          <form className="space-y-4 sm:space-y-6" onSubmit={onSubmit}>
+            {!form.groupId && (
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Client (by National ID)</label>
+                <select
+                  value={form.clientNationalId}
+                  onChange={(e) => setForm({ ...form, clientNationalId: e.target.value })}
+                  required={!form.groupId}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
+                >
+                  <option value="">Select a client</option>
+                  {clients.map((c) => (
+                    <option key={c.nationalId} value={c.nationalId}>
+                      {c.name} — {c.nationalId}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">Client (by National ID)</label>
-              <select
-                value={form.clientNationalId}
-                onChange={(e) => setForm({ ...form, clientNationalId: e.target.value })}
-                required
-                className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-              >
-                <option value="">Select a client</option>
-                {clients.map((c) => (
-                  <option key={c.nationalId} value={c.nationalId}>
-                    {c.name} — {c.nationalId}
-                  </option>
-                ))}
-              </select>
+              <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Group (optional)</label>
+              <input
+                type="text"
+                value={form.groupId}
+                onChange={(e) => setForm({ ...form, groupId: e.target.value })}
+                placeholder="Group ID (for group loans)"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
+              />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Loan Amount</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Product</label>
                 <input
-                  type="number"
-                  value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-                  placeholder="50000"
+                  type="text"
+                  value={form.product}
+                  onChange={(e) => setForm({ ...form, product: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
+                  placeholder="e.g., fafa"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Loan Type</label>
-                <select
-                  value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-                >
-                  <option value="business">Business</option>
-                  <option value="emergency">Emergency</option>
-                  <option value="school_fees">School Fees</option>
-                  <option value="other">Other</option>
-                </select>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Loan Amount (KES)</label>
+                <input
+                  type="number"
+                  value={form.amountKES}
+                  onChange={(e) => setForm({ ...form, amountKES: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
+                  placeholder="5000"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Duration (months)</label>
+                <input
+                  type="number"
+                  value={form.term}
+                  onChange={(e) => setForm({ ...form, term: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
+                  placeholder="6"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Interest Rate (%)</label>
+                <input
+                  type="number"
+                  value={form.interestRatePercent}
+                  onChange={(e) => setForm({ ...form, interestRatePercent: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
+                  placeholder="6"
+                />
+              </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Guarantors (optional)</label>
+                <input
+                  type="text"
+                  value={form.guarantors.map(g => g.clientNationalId).join(",")}
+                  onChange={(e) => {
+                    const ids = e.target.value.split(",").map(s => s.trim()).filter(Boolean)
+                    setForm({ ...form, guarantors: ids.map(id => ({ clientNationalId: id, relationship: "" })) })
+                  }}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
+                  placeholder="comma-separated national IDs"
+                />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">Duration (months)</label>
-              <input
-                type="number"
-                value={form.term}
-                onChange={(e) => setForm({ ...form, term: e.target.value })}
-                className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-                placeholder="6"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">Purpose</label>
+              <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Purpose</label>
               <textarea
                 rows={4}
                 value={form.purpose}
                 onChange={(e) => setForm({ ...form, purpose: e.target.value })}
-                className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
                 placeholder="Describe the purpose of the loan..."
               />
             </div>
 
-            <div className="flex gap-4 justify-end">
-              <Button type="button" variant="outline" onClick={() => router.back()} className="px-8 py-3">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-end pt-2">
+              <Button type="button" variant="outline" onClick={() => router.back()} className="px-6 sm:px-8 py-2 sm:py-3 text-sm sm:text-base">
                 Cancel
               </Button>
-              <Button type="submit" disabled={submitting} className="px-8 py-3 bg-primary text-white neumorphic neumorphic-hover border-0">
+              <Button type="submit" disabled={submitting} className="px-6 sm:px-8 py-2 sm:py-3 bg-primary text-white neumorphic neumorphic-hover border-0 text-sm sm:text-base">
                 {submitting ? "Submitting..." : "Submit Loan"}
               </Button>
             </div>

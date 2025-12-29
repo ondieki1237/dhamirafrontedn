@@ -2,12 +2,19 @@
 
 import { Bell, Search, LogOut } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 
 export function DashboardHeader() {
   const [showNotifications, setShowNotifications] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const [q, setQ] = useState(searchParams?.get("q") || "")
+
+  useEffect(() => {
+    setQ(searchParams?.get("q") || "")
+  }, [searchParams])
 
   const notifications = [
     { id: 1, title: "New loan application", message: "John Kamau submitted a loan request", time: "5 min ago" },
@@ -35,6 +42,14 @@ export function DashboardHeader() {
             <Input
               placeholder="Search clients, loans, groups..."
               className="pl-10 neumorphic-inset bg-background border-0"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const next = q ? `${pathname}?q=${encodeURIComponent(q)}` : pathname
+                  router.push(next)
+                }
+              }}
             />
           </div>
         </div>

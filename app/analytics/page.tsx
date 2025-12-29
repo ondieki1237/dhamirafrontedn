@@ -4,8 +4,85 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BarChart3, Users, DollarSign, AlertTriangle } from "lucide-react"
+import { useEffect, useState } from "react"
+
+function centsToKES(cents?: number) {
+  if (!cents && cents !== 0) return "—"
+  return `KES ${Number(cents / 100).toLocaleString()}`
+}
 
 export default function AnalyticsPage() {
+  const [overview, setOverview] = useState<any | null>(null)
+  const [portfolio, setPortfolio] = useState<any | null>(null)
+  const [demographics, setDemographics] = useState<any | null>(null)
+  const [repayments, setRepayments] = useState<any | null>(null)
+  const [performance, setPerformance] = useState<any | null>(null)
+  const [officers, setOfficers] = useState<any | null>(null)
+  const [risk, setRisk] = useState<any | null>(null)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      const API = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "")
+      const endpoints = [
+        { key: "overview", url: API ? `${API}/api/analytics/overview` : "/api/analytics/overview" },
+        { key: "portfolio", url: API ? `${API}/api/analytics/portfolio` : "/api/analytics/portfolio" },
+        { key: "demographics", url: API ? `${API}/api/analytics/demographics?range=365` : "/api/analytics/demographics?range=365" },
+        { key: "repayments", url: API ? `${API}/api/analytics/repayments?range=30` : "/api/analytics/repayments?range=30" },
+        { key: "performance", url: API ? `${API}/api/analytics/loan-performance?vintageMonths=12` : "/api/analytics/loan-performance?vintageMonths=12" },
+        { key: "officers", url: API ? `${API}/api/analytics/officers?range=30` : "/api/analytics/officers?range=30" },
+        { key: "risk", url: API ? `${API}/api/analytics/risk?range=365` : "/api/analytics/risk?range=365" },
+      ]
+
+      const results = await Promise.allSettled(
+        endpoints.map((e) => fetch(e.url).then(async (r) => ({ key: e.key, ok: r.ok, body: await r.json() })).catch((err) => ({ key: e.key, ok: false, error: err.message })))
+      )
+
+      if (!mounted) return
+
+      const nextErrors: Record<string, string> = {}
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          const v: any = r.value
+          if (!v.ok) {
+            nextErrors[v.key] = `endpoint returned error`
+            continue
+          }
+          switch (v.key) {
+            case "overview":
+              setOverview(v.body)
+              break
+            case "portfolio":
+              setPortfolio(v.body)
+              break
+            case "demographics":
+              setDemographics(v.body)
+              break
+            case "repayments":
+              setRepayments(v.body)
+              break
+            case "performance":
+              setPerformance(v.body)
+              break
+            case "officers":
+              setOfficers(v.body)
+              break
+            case "risk":
+              setRisk(v.body)
+              break
+          }
+        } else {
+          nextErrors[(r as any).reason?.key || "unknown"] = (r as any).reason?.error || "fetch failed"
+        }
+      }
+      setErrors(nextErrors)
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -31,10 +108,10 @@ export default function AnalyticsPage() {
                   <CardTitle className="text-sm font-medium">Total Loans</CardTitle>
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">1,234</div>
-                  <p className="text-xs text-muted-foreground">+12% from last month</p>
-                </CardContent>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{overview?.totalLoans?.toLocaleString() ?? "—"}</div>
+                      <p className="text-xs text-muted-foreground">{overview?.trends?.totalLoansChangePercent ? `${overview.trends.totalLoansChangePercent}% from last month` : ""}</p>
+                    </CardContent>
               </Card>
               <Card className="neumorphic border-0">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -42,8 +119,8 @@ export default function AnalyticsPage() {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">KES 45.2M</div>
-                  <p className="text-xs text-muted-foreground">+8% from last month</p>
+                  <div className="text-2xl font-bold">{centsToKES(overview?.totalDisbursedCents)}</div>
+                  <p className="text-xs text-muted-foreground">{overview?.trends?.totalDisbursedChangePercent ? `${overview.trends.totalDisbursedChangePercent}% from last month` : ""}</p>
                 </CardContent>
               </Card>
               <Card className="neumorphic border-0">
@@ -52,8 +129,8 @@ export default function AnalyticsPage() {
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">3,456</div>
-                  <p className="text-xs text-muted-foreground">+5% from last month</p>
+                  <div className="text-2xl font-bold">{overview?.totalClients?.toLocaleString() ?? "—"}</div>
+                  <p className="text-xs text-muted-foreground">{overview?.trends?.totalClientsChangePercent ? `${overview.trends.totalClientsChangePercent}% from last month` : ""}</p>
                 </CardContent>
               </Card>
               <Card className="neumorphic border-0">
@@ -62,8 +139,8 @@ export default function AnalyticsPage() {
                   <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">2.4%</div>
-                  <p className="text-xs text-green-600">-0.3% from last month</p>
+                  <div className="text-2xl font-bold">{overview?.defaultRatePercent ?? "—"}%</div>
+                  <p className="text-xs text-green-600">{overview?.trends?.defaultRateChangePercent ? `${overview.trends.defaultRateChangePercent}% from last month` : ""}</p>
                 </CardContent>
               </Card>
             </div>
@@ -80,10 +157,10 @@ export default function AnalyticsPage() {
                       <p className="text-sm font-medium">Active Loans</p>
                       <p className="text-xs text-muted-foreground">Currently disbursed</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold">856</p>
-                      <p className="text-xs text-muted-foreground">KES 32.4M</p>
-                    </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold">{portfolio?.byStatus?.active?.count ?? "—"}</p>
+                        <p className="text-xs text-muted-foreground">{centsToKES(portfolio?.byStatus?.active?.amountCents)}</p>
+                      </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
@@ -91,8 +168,8 @@ export default function AnalyticsPage() {
                       <p className="text-xs text-muted-foreground">Awaiting review</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold">142</p>
-                      <p className="text-xs text-muted-foreground">KES 5.8M</p>
+                      <p className="text-sm font-bold">{portfolio?.byStatus?.pending?.count ?? "—"}</p>
+                      <p className="text-xs text-muted-foreground">{centsToKES(portfolio?.byStatus?.pending?.amountCents)}</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -101,8 +178,8 @@ export default function AnalyticsPage() {
                       <p className="text-xs text-muted-foreground">Overdue payments</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold">29</p>
-                      <p className="text-xs text-muted-foreground">KES 1.2M</p>
+                      <p className="text-sm font-bold">{portfolio?.byStatus?.defaulted?.count ?? "—"}</p>
+                      <p className="text-xs text-muted-foreground">{centsToKES(portfolio?.byStatus?.defaulted?.amountCents)}</p>
                     </div>
                   </div>
                 </div>
@@ -116,44 +193,38 @@ export default function AnalyticsPage() {
                 <CardTitle>Client Demographics</CardTitle>
                 <CardDescription>Distribution and characteristics of clients</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-semibold mb-2">Top Business Types</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Retail</span>
-                        <span className="text-sm font-bold">1,245 clients</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Agriculture</span>
-                        <span className="text-sm font-bold">892 clients</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Services</span>
-                        <span className="text-sm font-bold">567 clients</span>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">Age Buckets</h4>
+                      <div className="space-y-2">
+                        {demographics?.ageBuckets
+                          ? Object.entries(demographics.ageBuckets).map(([k, v]) => (
+                              <div key={k} className="flex items-center justify-between">
+                                <span className="text-sm">{k}</span>
+                                <span className="text-sm font-bold">{v}</span>
+                              </div>
+                            ))
+                          : <div className="text-sm text-muted-foreground">No demographics data</div>}
                       </div>
                     </div>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold mb-2">Savings Metrics</h4>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Average</p>
-                        <p className="text-lg font-bold">KES 12,500</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Maximum</p>
-                        <p className="text-lg font-bold">KES 85,000</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Minimum</p>
-                        <p className="text-lg font-bold">KES 1,200</p>
-                      </div>
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">Gender</h4>
+                      {demographics?.gender ? (
+                        <div className="space-y-2">
+                          {Object.entries(demographics.gender).map(([k, v]) => (
+                            <div key={k} className="flex items-center justify-between">
+                              <span className="text-sm">{k}</span>
+                              <span className="text-sm font-bold">{v}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">No gender data</div>
+                      )}
                     </div>
                   </div>
-                </div>
-              </CardContent>
+                </CardContent>
             </Card>
           </TabsContent>
 
@@ -168,18 +239,16 @@ export default function AnalyticsPage() {
                   <div>
                     <h4 className="text-sm font-semibold mb-2">Payment Methods</h4>
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">M-Pesa</span>
-                        <span className="text-sm font-bold">KES 18.4M (68%)</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Bank Transfer</span>
-                        <span className="text-sm font-bold">KES 6.2M (23%)</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Cash</span>
-                        <span className="text-sm font-bold">KES 2.4M (9%)</span>
-                      </div>
+                      {repayments?.byMethod ? (
+                        Object.entries(repayments.byMethod).map(([m, cents]) => (
+                          <div key={m} className="flex items-center justify-between">
+                            <span className="text-sm">{m}</span>
+                            <span className="text-sm font-bold">{centsToKES(cents)}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-sm text-muted-foreground">No repayments data</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -195,36 +264,22 @@ export default function AnalyticsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 neumorphic-inset rounded-xl">
-                    <div>
-                      <p className="font-semibold">Business Loans</p>
-                      <p className="text-xs text-muted-foreground">642 active loans</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold">KES 24.5M</p>
-                      <p className="text-xs text-green-600">1.8% default rate</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-4 neumorphic-inset rounded-xl">
-                    <div>
-                      <p className="font-semibold">Emergency Loans</p>
-                      <p className="text-xs text-muted-foreground">156 active loans</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold">KES 5.2M</p>
-                      <p className="text-xs text-green-600">2.1% default rate</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-4 neumorphic-inset rounded-xl">
-                    <div>
-                      <p className="font-semibold">School Fees</p>
-                      <p className="text-xs text-muted-foreground">58 active loans</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold">KES 2.7M</p>
-                      <p className="text-xs text-green-600">0.9% default rate</p>
-                    </div>
-                  </div>
+                  {performance?.vintage ? (
+                    performance.vintage.map((v: any) => (
+                      <div key={v.month} className="flex items-center justify-between p-4 neumorphic-inset rounded-xl">
+                        <div>
+                          <p className="font-semibold">{v.month}</p>
+                          <p className="text-xs text-muted-foreground">{v.disbursedCount} disbursed</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold">{centsToKES(v.disbursedCents)}</p>
+                          <p className="text-xs text-green-600">{v.nplPercent}% default rate</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-muted-foreground">No performance data</div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -238,36 +293,25 @@ export default function AnalyticsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-4 neumorphic-inset rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-white font-bold">
-                        JM
+                  {officers?.officers ? (
+                    officers.officers.map((o: any) => (
+                      <div key={o.id} className="flex items-center justify-between p-4 neumorphic-inset rounded-xl">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-white font-bold">{(o.name || "").split(" ").map((s: string) => s[0]).slice(0,2).join("")}</div>
+                          <div>
+                            <p className="font-semibold">{o.name}</p>
+                            <p className="text-xs text-muted-foreground">Loan Officer</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold">{o.loansInitiated ?? o.loans ?? "—"} loans</p>
+                          <p className="text-xs text-muted-foreground">{centsToKES(o.disbursedCents)}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold">John Mwangi</p>
-                        <p className="text-xs text-muted-foreground">Loan Officer</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold">245 loans</p>
-                      <p className="text-xs text-muted-foreground">KES 12.4M disbursed</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-4 neumorphic-inset rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-white font-bold">
-                        AK
-                      </div>
-                      <div>
-                        <p className="font-semibold">Alice Kamau</p>
-                        <p className="text-xs text-muted-foreground">Loan Officer</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold">198 loans</p>
-                      <p className="text-xs text-muted-foreground">KES 9.8M disbursed</p>
-                    </div>
-                  </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-muted-foreground">No officer data</div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -286,24 +330,24 @@ export default function AnalyticsPage() {
                       <AlertTriangle className="w-5 h-5 text-yellow-600" />
                       <h4 className="font-semibold">Overdue Loans</h4>
                     </div>
-                    <p className="text-2xl font-bold">47 loans</p>
-                    <p className="text-xs text-muted-foreground">KES 2.1M total overdue amount</p>
+                    <p className="text-2xl font-bold">{risk?.delinquencyBuckets ? Object.values(risk.delinquencyBuckets).reduce((a: number, b: any) => a + Number(b), 0) : "—"} loans</p>
+                    <p className="text-xs text-muted-foreground">{centsToKES(risk?.expectedLossCents)}</p>
                   </div>
                   <div className="p-4 neumorphic-inset rounded-xl">
                     <div className="flex items-center gap-2 mb-2">
                       <AlertTriangle className="w-5 h-5 text-red-600" />
                       <h4 className="font-semibold">High-Risk Clients</h4>
                     </div>
-                    <p className="text-2xl font-bold">23 clients</p>
-                    <p className="text-xs text-muted-foreground">2+ defaults on record</p>
+                    <p className="text-2xl font-bold">{(risk && risk.scoreBuckets) ? Object.values(risk.scoreBuckets).slice(-1)[0] : "—"} clients</p>
+                    <p className="text-xs text-muted-foreground">Based on score distribution</p>
                   </div>
                   <div className="p-4 neumorphic-inset rounded-xl">
                     <div className="flex items-center gap-2 mb-2">
                       <AlertTriangle className="w-5 h-5 text-orange-600" />
                       <h4 className="font-semibold">Low Savings Clients</h4>
                     </div>
-                    <p className="text-2xl font-bold">156 clients</p>
-                    <p className="text-xs text-muted-foreground">Below KES 5,000 savings threshold</p>
+                    <p className="text-2xl font-bold">{risk?.topRiskDrivers ? Math.round((risk.topRiskDrivers.find((d: any) => d.driver === 'lowSavings')?.impact || 0) * 100) : "—"} clients</p>
+                    <p className="text-xs text-muted-foreground">Based on risk drivers</p>
                   </div>
                 </div>
               </CardContent>

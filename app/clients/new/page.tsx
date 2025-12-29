@@ -86,74 +86,74 @@ export default function NewClientPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-6">
-          <Button variant="ghost" onClick={() => router.back()} className="mb-4 gap-2">
+      <div className="max-w-4xl mx-auto px-4 sm:px-0">
+        <div className="mb-4 sm:mb-6">
+          <Button variant="ghost" onClick={() => router.back()} className="mb-3 sm:mb-4 gap-2 h-8 sm:h-10">
             <ArrowLeft className="w-4 h-4" />
             Back
           </Button>
-          <h1 className="text-3xl font-bold text-foreground">New Client</h1>
-          <p className="text-muted-foreground mt-1">Add a new client to the system</p>
-          {blocked && <p className="text-sm text-destructive mt-2">You do not have permission to onboard clients.</p>}
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">New Client</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Add a new client to the system</p>
+          {blocked && <p className="text-xs text-destructive mt-2">You do not have permission to onboard clients.</p>}
         </div>
 
-        <Card className="neumorphic p-8 bg-card border-0">
-          <form className="space-y-6" onSubmit={onSubmit}>
+        <Card className="neumorphic p-4 sm:p-8 bg-card border-0">
+          <form className="space-y-4 sm:space-y-6" onSubmit={onSubmit}>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">Full Name *</label>
+              <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Full Name *</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
                 placeholder="Enter full name"
                 required
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">National ID *</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">National ID *</label>
                 <input
                   type="text"
                   value={form.nationalId}
                   onChange={(e) => setForm({ ...form, nationalId: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
                   placeholder="12345678"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Phone Number *</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Phone Number *</label>
                 <input
                   type="tel"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
                   placeholder="+254 700 000 000"
                   required
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Residence *</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Residence *</label>
                 <select
                   value={form.residence}
                   onChange={(e) => setForm({ ...form, residence: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
                 >
                   <option value="owned">Owned</option>
                   <option value="rented">Rented</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Group</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Group</label>
                 <select
                   value={form.groupId}
                   onChange={(e) => setForm({ ...form, groupId: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
                 >
                   <option value="">Select group (optional)</option>
                   {groups.map((g) => (
@@ -165,61 +165,61 @@ export default function NewClientPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Business Type</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Business Type</label>
                 <input
                   type="text"
                   value={form.businessType}
                   onChange={(e) => setForm({ ...form, businessType: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
                   placeholder="Retail / Agriculture / Services"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Business Location</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Business Location</label>
                 <input
                   type="text"
                   value={form.businessLocation}
                   onChange={(e) => setForm({ ...form, businessLocation: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
                   placeholder="Town / Area"
                   required
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Next of Kin Name</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Next of Kin Name</label>
                 <input
                   type="text"
                   value={form.nextOfKinName}
                   onChange={(e) => setForm({ ...form, nextOfKinName: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
                   placeholder="Full name"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Next of Kin Phone</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Next of Kin Phone</label>
                 <input
                   type="tel"
                   value={form.nextOfKinPhone}
                   onChange={(e) => setForm({ ...form, nextOfKinPhone: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
                   placeholder="+254 7xx xxx xxx"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Relationship</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Relationship</label>
                 <input
                   type="text"
                   value={form.nextOfKinRelationship}
                   onChange={(e) => setForm({ ...form, nextOfKinRelationship: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
                   placeholder="Sister / Brother / Spouse"
                   required
                 />
@@ -227,21 +227,21 @@ export default function NewClientPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">Photo</label>
+              <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Photo</label>
               <input
                 type="file"
                 accept="image/*"
                 onChange={(e) => setForm({ ...form, photo: e.target.files?.[0] || null })}
-                className="w-full px-4 py-2 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none"
+                className="w-full px-3 sm:px-4 py-2 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none text-sm"
                 required
               />
             </div>
 
-            <div className="flex gap-4 justify-end">
-              <Button type="button" variant="outline" onClick={() => router.back()} className="px-8 py-3">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-end pt-2">
+              <Button type="button" variant="outline" onClick={() => router.back()} className="px-6 sm:px-8 py-2 sm:py-3 text-sm sm:text-base">
                 Cancel
               </Button>
-              <Button type="submit" disabled={submitting} className="px-8 py-3 bg-secondary text-white neumorphic neumorphic-hover border-0">
+              <Button type="submit" disabled={submitting} className="px-6 sm:px-8 py-2 sm:py-3 bg-secondary text-white neumorphic neumorphic-hover border-0 text-sm sm:text-base">
                 {submitting ? "Creating..." : "Create Client"}
               </Button>
             </div>

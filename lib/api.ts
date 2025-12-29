@@ -1,4 +1,9 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || ""
+// Determine API URL based on environment
+// Use LOCAL_API_URL for development, NEXT_PUBLIC_API_URL for production
+export const API_BASE_URL = 
+  process.env.NODE_ENV === "development" 
+    ? (process.env.LOCAL_API_URL || "http://localhost:5011")
+    : (process.env.NEXT_PUBLIC_API_URL || "https://dhamira.codewithseth.co.ke")
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null
@@ -76,6 +81,20 @@ export async function apiPostFormData<T = any>(path: string, form: FormData, ini
     headers: {
       ...(init?.headers || {}),
       // DO NOT set Content-Type for FormData; browser will set boundary
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json()
+}
+
+export async function apiDelete<T = any>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken()
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "DELETE",
+    ...init,
+    headers: {
+      ...(init?.headers || {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   })

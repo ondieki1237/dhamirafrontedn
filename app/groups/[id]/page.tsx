@@ -21,6 +21,13 @@ type Group = {
   signatories?: Array<{ role: string; memberNationalId: string }>
 }
 
+type ClientItem = {
+  _id: string
+  name?: string
+  nationalId?: string
+  groupId?: string | { _id?: string }
+}
+
 export default function GroupDetailPage() {
   const router = useRouter()
   const params = useParams()
@@ -28,7 +35,9 @@ export default function GroupDetailPage() {
   const groupId = params.id as string
 
   const [group, setGroup] = useState<Group | null>(null)
+  const [members, setMembers] = useState<ClientItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [membersLoading, setMembersLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     chairperson: "",
@@ -71,8 +80,35 @@ export default function GroupDetailPage() {
     }
   }
 
+  const fetchMembers = async () => {
+    try {
+      setMembersLoading(true)
+      // Try server-side filter first
+      try {
+        const data = await apiGet<ClientItem[]>(`/api/clients?groupId=${groupId}`)
+        setMembers(data || [])
+        return
+      } catch {
+        // fallback to fetching all clients and filtering
+      }
+      const all = await apiGet<ClientItem[]>(`/api/clients`)
+      const filtered = (all || []).filter((c) => {
+        if (!c) return false
+        if (!c.groupId) return false
+        if (typeof c.groupId === "string") return c.groupId === groupId
+        return c.groupId._id === groupId
+      })
+      setMembers(filtered)
+    } catch (e: any) {
+      // silent; members are optional
+    } finally {
+      setMembersLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchGroup()
+    fetchMembers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId])
 
@@ -132,9 +168,18 @@ export default function GroupDetailPage() {
               <h1 className="text-3xl font-bold text-foreground">{group.name}</h1>
               <p className="text-muted-foreground mt-1">Group Details & Signatories</p>
             </div>
-            <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20">
-              {group._id}
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => router.push(`/loans/initiate?groupId=${group._id}`)}
+                size="sm"
+                className="px-3 py-2"
+              >
+                Initiate Group Loan
+              </Button>
+              <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20">
+                {group._id}
+              </Badge>
+            </div>
           </div>
         </div>
 
@@ -206,11 +251,11 @@ export default function GroupDetailPage() {
           </form>
         </Card>
 
-        {Array.isArray(group.members) && group.members.length > 0 && (
+        {(membersLoading ? [] : members).length > 0 && (
           <Card className="neumorphic p-6 bg-card border-0">
             <h2 className="text-xl font-bold mb-4">Members</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {group.members.map((m, idx) => (
+              {(members.length > 0 ? members : (group.members || [])).map((m, idx) => (
                 <div key={(m._id as string) || idx} className="p-4 rounded-xl bg-muted/30">
                   <p className="font-semibold">{m.name || "—"}</p>
                   <p className="text-sm text-muted-foreground">ID: {m.nationalId || "—"}</p>

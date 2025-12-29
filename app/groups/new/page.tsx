@@ -44,46 +44,46 @@ export default function NewGroupPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-6">
-          <Button variant="ghost" onClick={() => router.back()} className="mb-4 gap-2">
+      <div className="max-w-4xl mx-auto px-4 sm:px-0">
+        <div className="mb-4 sm:mb-6">
+          <Button variant="ghost" onClick={() => router.back()} className="mb-3 sm:mb-4 gap-2 h-8 sm:h-10">
             <ArrowLeft className="w-4 h-4" />
             Back
           </Button>
-          <h1 className="text-3xl font-bold text-foreground">Create Group</h1>
-          <p className="text-muted-foreground mt-1">Set up a new lending group</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Create Group</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Set up a new lending group</p>
         </div>
 
-        <Card className="neumorphic p-8 bg-card border-0">
-          <form className="space-y-6" onSubmit={onSubmit}>
+        <Card className="neumorphic p-4 sm:p-8 bg-card border-0">
+          <form className="space-y-4 sm:space-y-6" onSubmit={onSubmit}>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">Group Name</label>
+              <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Group Name</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
                 placeholder="Enter group name"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">Description</label>
+              <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Description</label>
               <textarea
                 rows={3}
-                className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
                 placeholder="Describe the group purpose..."
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Meeting Day</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Meeting Day</label>
                 <select
                   value={form.meetingDay}
                   onChange={(e) => setForm({ ...form, meetingDay: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none text-sm"
                 >
                   {[
                     "Monday",
@@ -101,43 +101,43 @@ export default function NewGroupPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Meeting Time</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Meeting Time</label>
                 <input
                   type="time"
                   value={form.meetingTime}
                   onChange={(e) => setForm({ ...form, meetingTime: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Loan Officer</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Loan Officer</label>
                 <input
                   type="text"
                   value={form.loanOfficerId}
                   onChange={(e) => setForm({ ...form, loanOfficerId: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset text-sm"
                   placeholder="User ID"
                 />
               </div>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <label className="block text-sm font-semibold text-foreground">Group Members</label>
+              <div className="flex items-center justify-between mb-3 sm:mb-4 flex-col sm:flex-row gap-3 sm:gap-0">
+                <label className="block text-xs sm:text-sm font-semibold text-foreground">Group Members</label>
                 <Button
                   type="button"
                   onClick={() => setMembers([...members, { id: Date.now() }])}
-                  className="gap-2 bg-secondary text-white neumorphic neumorphic-hover border-0"
+                  className="gap-2 bg-secondary text-white neumorphic neumorphic-hover border-0 w-full sm:w-auto text-xs sm:text-sm py-2 sm:py-auto"
                 >
                   <Plus className="w-4 h-4" />
                   Add Member
                 </Button>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {members.map((member, index) => (
-                  <div key={member.id} className="flex gap-3">
-                    <select className="flex-1 px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all">
+                  <div key={member.id} className="flex gap-2 sm:gap-3">
+                    <select className="flex-1 px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm">
                       <option value="">Select member</option>
                       <option value="1">John Doe</option>
                       <option value="2">Jane Smith</option>
@@ -147,7 +147,7 @@ export default function NewGroupPage() {
                         type="button"
                         variant="outline"
                         onClick={() => setMembers(members.filter((_, i) => i !== index))}
-                        className="px-3"
+                        className="px-2 sm:px-3"
                       >
                         <X className="w-4 h-4" />
                       </Button>
@@ -157,11 +157,11 @@ export default function NewGroupPage() {
               </div>
             </div>
 
-            <div className="flex gap-4 justify-end">
-              <Button type="button" variant="outline" onClick={() => router.back()} className="px-8 py-3">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-end pt-2">
+              <Button type="button" variant="outline" onClick={() => router.back()} className="px-6 sm:px-8 py-2 sm:py-3 text-sm sm:text-base">
                 Cancel
               </Button>
-              <Button type="submit" className="px-8 py-3 bg-secondary text-white neumorphic neumorphic-hover border-0">
+              <Button type="submit" className="px-6 sm:px-8 py-2 sm:py-3 bg-secondary text-white neumorphic neumorphic-hover border-0 text-sm sm:text-base">
                 Create Group
               </Button>
             </div>
