@@ -55,6 +55,13 @@ export default function ApproveLoanPage() {
   }
 
   const handleApprove = async (loanId: string) => {
+    const target = loans.find((l) => l._id === loanId) as any
+    const initiatorId = target?.initiatedBy?._id || target?.initiatedBy?.id || target?.initiatedBy || target?.createdBy || target?.createdById
+    if (user?._id && initiatorId && user._id === initiatorId) {
+      toast({ title: "Not allowed", description: "You initiated this loan and cannot approve it." })
+      return
+    }
+
     if (!window.confirm("Approve this loan?")) return
     try {
       await apiPutJson(`/api/loans/${loanId}/approve`, {})
@@ -66,6 +73,13 @@ export default function ApproveLoanPage() {
   }
 
   const handleReject = async (loanId: string) => {
+    const target = loans.find((l) => l._id === loanId) as any
+    const initiatorId = target?.initiatedBy?._id || target?.initiatedBy?.id || target?.initiatedBy || target?.createdBy || target?.createdById
+    if (user?._id && initiatorId && user._id === initiatorId) {
+      toast({ title: "Not allowed", description: "You initiated this loan and cannot reject it." })
+      return
+    }
+
     if (!window.confirm("Reject this loan? This action cannot be undone.")) return
     try {
       await apiPutJson(`/api/loans/${loanId}/reject`, {})
@@ -101,6 +115,9 @@ export default function ApproveLoanPage() {
             {loans.map((loan) => {
               const clientName = typeof loan.client === "string" ? loan.client : loan.client.name
               const clientId = typeof loan.client === "string" ? "" : loan.client.nationalId
+              const anyLoan = loan as any
+              const initiatorId = anyLoan?.initiatedBy?._id || anyLoan?.initiatedBy?.id || anyLoan?.initiatedBy || anyLoan?.createdBy || anyLoan?.createdById
+              const isInitiator = user?._id && initiatorId && user._id === initiatorId
               
               return (
                 <Card key={loan._id} className="neumorphic p-6 bg-card border-0">
@@ -148,12 +165,13 @@ export default function ApproveLoanPage() {
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-col gap-2 ml-6">
+                      <div className="flex flex-col gap-2 ml-6">
                       {loan.status === "initiated" && (
                         <>
                           <Button 
                             onClick={() => handleApprove(loan._id)} 
                             className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                            disabled={isInitiator}
                           >
                             <Check className="w-4 h-4" />
                             Approve
@@ -162,10 +180,14 @@ export default function ApproveLoanPage() {
                             variant="outline" 
                             onClick={() => handleReject(loan._id)} 
                             className="gap-2 text-red-600 border-red-200 hover:bg-red-50"
+                            disabled={isInitiator}
                           >
                             <X className="w-4 h-4" />
                             Reject
                           </Button>
+                          {isInitiator && (
+                            <p className="text-xs text-muted-foreground mt-1">You initiated this loan and cannot approve or reject it.</p>
+                          )}
                         </>
                       )}
                       <Button 
