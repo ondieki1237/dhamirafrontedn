@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
-import { apiGet, apiPostJson } from "@/lib/api"
+import { apiGet, apiPostJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { useSearchParams } from "next/navigation"
 
@@ -32,14 +32,14 @@ export default function InitiateLoanPage() {
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        const data = await apiGet<{ name: string; nationalId: string }[]>("/api/clients")
-        if (mounted) setClients(data)
-      } catch (e) {
-        // ignore; form still usable
-      }
-    })()
+      ; (async () => {
+        try {
+          const data = await apiGet<{ name: string; nationalId: string }[]>("/api/clients")
+          if (mounted) setClients(data)
+        } catch (e) {
+          // ignore; form still usable
+        }
+      })()
     return () => {
       mounted = false
     }
@@ -51,7 +51,7 @@ export default function InitiateLoanPage() {
     const groupId = search?.get("groupId")
     if (clientNationalId) setForm((f) => ({ ...f, clientNationalId }))
     if (groupId) setForm((f) => ({ ...f, groupId }))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -62,32 +62,64 @@ export default function InitiateLoanPage() {
       return
     }
     let mounted = true
-    ;(async () => {
-      try {
-        setGroupLoading(true)
-        const g = await apiGet(`/api/groups/${gid}`)
-        if (!mounted) return
-        setGroupInfo(g)
-        // If group explicitly carries an inactive reason field, expose it
-        const reason = (g && (g.inactiveReason || g.reason || g.message)) || null
-        if (reason) setGroupInactiveReason(String(reason))
-        else setGroupInactiveReason(null)
-      } catch (err: any) {
-        // couldn't fetch group; clear info
-        if (!mounted) return
-        setGroupInfo(null)
-        setGroupInactiveReason(null)
-      } finally {
-        if (mounted) setGroupLoading(false)
-      }
-    })()
+      ; (async () => {
+        try {
+          setGroupLoading(true)
+          const g = await apiGet(`/api/groups/${gid}`)
+          if (!mounted) return
+          setGroupInfo(g)
+          // If group explicitly carries an inactive reason field, expose it
+          const reason = (g && (g.inactiveReason || g.reason || g.message)) || null
+          if (reason) setGroupInactiveReason(String(reason))
+          else setGroupInactiveReason(null)
+        } catch (err: any) {
+          // couldn't fetch group; clear info
+          if (!mounted) return
+          setGroupInfo(null)
+          setGroupInactiveReason(null)
+        } finally {
+          if (mounted) setGroupLoading(false)
+        }
+      })()
     return () => {
       mounted = false
     }
   }, [form.groupId])
 
+  const [userRole, setUserRole] = useState<string | null>(null)
+
+  useEffect(() => {
+    const u = getCurrentUser()
+    setUserRole(u?.role || null)
+  }, [])
+
+  const canInitiate = userRole && ["super_admin", "initiator_admin"].includes(userRole)
+
+  const selectedClient = useMemo(() => {
+    return clients.find(c => c.nationalId === form.clientNationalId)
+  }, [clients, form.clientNationalId])
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!canInitiate) {
+      toast({ title: "Not allowed", description: "Only Initiator Admins can initiate loans." })
+      return
+    }
+
+    const amountKES = Number(form.amountKES)
+    if (selectedClient) {
+      const savings = (selectedClient as any).savings_balance_cents || 0
+      const threshold = amountKES * 20 // 20% of amount in cents (amountKES * 100 * 0.2 = amountKES * 20)
+      if (savings < threshold) {
+        toast({
+          title: "Insufficient Savings",
+          description: `Client must have at least KES ${(threshold / 100).toLocaleString()} (20%) in savings. Current: KES ${(savings / 100).toLocaleString()}`,
+          variant: "destructive"
+        })
+        return
+      }
+    }
+
     try {
       setSubmitting(true)
       const payload: any = {}
@@ -97,7 +129,7 @@ export default function InitiateLoanPage() {
         payload.clientNationalId = form.clientNationalId
       }
       payload.product = form.product
-      payload.amountKES = Number(form.amountKES)
+      payload.amountKES = amountKES
       payload.term = Number(form.term)
       if (form.interestRatePercent) payload.interestRatePercent = Number(form.interestRatePercent)
       if (form.purpose) payload.purpose = form.purpose
@@ -107,7 +139,6 @@ export default function InitiateLoanPage() {
       router.push("/loans")
     } catch (e: any) {
       const msg = e?.message || "Failed to initiate loan"
-      // detect backend structured error
       if (msg.toLowerCase().includes("group not active") || msg.toLowerCase().includes("not_active") || msg.toLowerCase().includes("inactive")) {
         setGroupInactiveReason(msg)
       }

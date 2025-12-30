@@ -4,11 +4,13 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Save } from "lucide-react"
+import { ArrowLeft, Save, DollarSign } from "lucide-react"
 import { useRouter, useParams } from "next/navigation"
 import { useEffect, useState } from "react"
-import { apiGet, apiPutJson } from "@/lib/api"
+import { apiGet, apiPutJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { SavingsAdjustmentDialog } from "@/components/savings-adjustment-dialog"
+import { History, PlusCircle } from "lucide-react"
 
 // Types kept loose to be resilient to backend changes
 type Group = {
@@ -45,6 +47,14 @@ export default function GroupDetailPage() {
     treasurer: "",
   })
 
+  const [isSavingsDialogOpen, setIsSavingsDialogOpen] = useState(false)
+  const [targetClient, setTargetClient] = useState<{ id: string, name: string } | null>(null)
+  const [savingsHistory, setSavingsHistory] = useState<any[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+
+  const user = getCurrentUser()
+  const canApprove = user?.role && ["super_admin", "approver_admin"].includes(user.role)
+
   const fetchGroup = async () => {
     try {
       setLoading(true)
@@ -68,11 +78,11 @@ export default function GroupDetailPage() {
         acc[s.role] = s.memberNationalId
         return acc
       }, {})
-      setForm((f) => ({
-        chairperson: existing.chairperson || f.chairperson,
-        secretary: existing.secretary || f.secretary,
-        treasurer: existing.treasurer || f.treasurer,
-      }))
+      setForm({
+        chairperson: existing.chairperson || "",
+        secretary: existing.secretary || "",
+        treasurer: existing.treasurer || "",
+      })
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load group" })
     } finally {
@@ -109,8 +119,21 @@ export default function GroupDetailPage() {
   useEffect(() => {
     fetchGroup()
     fetchMembers()
+    fetchGroupSavingsHistory()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId])
+
+  const fetchGroupSavingsHistory = async () => {
+    try {
+      setHistoryLoading(true)
+      const data = await apiGet<any[]>(`/api/savings?groupId=${groupId}`)
+      setSavingsHistory(Array.isArray(data) ? data : [])
+    } catch {
+      // silent
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
 
   const onAssign = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -176,30 +199,23 @@ export default function GroupDetailPage() {
               >
                 Initiate Group Loan
               </Button>
+              {canApprove && (
+                <Button
+                  onClick={() => router.push(`/savings`)}
+                  variant="outline"
+                  size="sm"
+                  className="px-3 py-2 gap-2"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Add Savings
+                </Button>
+              )}
               <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20">
                 {group._id}
               </Badge>
             </div>
           </div>
         </div>
-
-        <Card className="neumorphic p-6 bg-card border-0">
-          <h2 className="text-xl font-bold mb-4">Overview</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Meeting Day</p>
-              <p className="font-semibold">{group.meetingDay || "—"}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Meeting Time</p>
-              <p className="font-semibold">{group.meetingTime || "—"}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Loan Officer</p>
-              <p className="font-semibold">{officerName}</p>
-            </div>
-          </div>
-        </Card>
 
         <Card className="neumorphic p-6 bg-card border-0">
           <h2 className="text-xl font-bold mb-4">Assign Signatories</h2>
@@ -251,20 +267,75 @@ export default function GroupDetailPage() {
           </form>
         </Card>
 
+        {/* Group Savings Activities */}
+        <Card className="neumorphic p-6 bg-card border-0">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <History className="w-5 h-5 text-primary" />
+            Group Savings Activities
+          </h2>
+          <div className="space-y-3">
+            {historyLoading ? (
+              <p className="text-sm text-muted-foreground animate-pulse">Loading activity history...</p>
+            ) : savingsHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">No savings activity recorded for this group.</p>
+            ) : (
+              <div className="space-y-2">
+                {savingsHistory.slice(0, 5).map((tx, idx) => (
+                  <div key={tx._id || idx} className="p-3 rounded-xl bg-muted/20 border border-border text-sm flex justify-between items-center">
+                    <div className="flex gap-2 items-center">
+                      <Badge variant="outline" className={tx.amountKES < 0 ? "bg-red-50 text-red-700 border-red-200" : "bg-green-50 text-green-700 border-green-200"}>
+                        {tx.amountKES < 0 ? "-" : "+"} KES {Math.abs(tx.amountKES).toLocaleString()}
+                      </Badge>
+                      <span className="font-medium">{tx.clientName || 'Client'}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+
         {(membersLoading ? [] : members).length > 0 && (
           <Card className="neumorphic p-6 bg-card border-0">
             <h2 className="text-xl font-bold mb-4">Members</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {(members.length > 0 ? members : (group.members || [])).map((m, idx) => (
-                <div key={(m._id as string) || idx} className="p-4 rounded-xl bg-muted/30">
-                  <p className="font-semibold">{m.name || "—"}</p>
-                  <p className="text-sm text-muted-foreground">ID: {m.nationalId || "—"}</p>
+                <div key={(m._id as string) || idx} className="p-4 rounded-xl bg-muted/30 flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">{m.name || "—"}</p>
+                    <p className="text-sm text-muted-foreground">ID: {m.nationalId || "—"}</p>
+                  </div>
+                  {canApprove && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setTargetClient({ id: m._id, name: m.name || 'Member' })
+                        setIsSavingsDialogOpen(true)
+                      }}
+                      className="h-8 w-8 p-0 rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
+                      title="Adjust Savings"
+                    >
+                      <PlusCircle className="w-5 h-5" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
           </Card>
         )}
       </div>
-    </DashboardLayout>
+      <SavingsAdjustmentDialog
+        isOpen={isSavingsDialogOpen}
+        onOpenChange={setIsSavingsDialogOpen}
+        clientId={targetClient?.id || ""}
+        clientName={targetClient?.name || ""}
+        onSuccess={() => {
+          fetchMembers()
+          fetchGroupSavingsHistory()
+        }}
+      />
+    </DashboardLayout >
   )
 }

@@ -17,6 +17,8 @@ import {
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 import { useRouter, usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
+import { getCurrentUser } from "@/lib/api"
 
 interface SidebarProps {
   collapsed: boolean
@@ -28,6 +30,8 @@ const menuItems = [
   { icon: DollarSign, label: "Loans", route: "/loans" },
   { icon: UserCircle, label: "Clients", route: "/clients" },
   { icon: Users, label: "Groups", route: "/groups" },
+  { icon: DollarSign, label: "Savings", route: "/savings" },
+  { icon: FileCheck, label: "Disbursements", route: "/loans/disburse" },
   { icon: FileText, label: "Credit Assessments", route: "/credit-assessments" },
   { icon: TrendingUp, label: "Repayments", route: "/repayments" },
   { icon: Shield, label: "Guarantors", route: "/guarantors" },
@@ -39,6 +43,16 @@ const menuItems = [
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const [user, setUser] = useState<{ username: string; role: string } | null>(null)
+
+  useEffect(() => {
+    const userData = getCurrentUser()
+    setUser(userData)
+  }, [])
+
+  const initials = user?.username
+    ? user.username.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2)
+    : "U"
 
   return (
     <aside
@@ -93,12 +107,16 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )}
         >
           <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground font-semibold">
-            SA
+            {initials}
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-accent-foreground truncate">Super Admin</p>
-              <p className="text-xs text-sidebar-accent-foreground/70 truncate">admin@dhamira.com</p>
+              <p className="text-sm font-medium text-sidebar-accent-foreground truncate">
+                {user?.username || "Loading..."}
+              </p>
+              <p className="text-xs text-sidebar-accent-foreground/70 truncate uppercase">
+                {user?.role?.replace("_", " ") || "Member"}
+              </p>
             </div>
           )}
         </div>

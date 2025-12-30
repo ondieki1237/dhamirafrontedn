@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
+import React, { Suspense } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardStats } from "@/components/dashboard-stats"
@@ -18,7 +19,9 @@ export function DashboardLayout({ children }: { children?: React.ReactNode }) {
       <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <DashboardHeader />
+        <Suspense fallback={<div />}>
+          <DashboardHeader />
+        </Suspense>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-7xl mx-auto space-y-6">

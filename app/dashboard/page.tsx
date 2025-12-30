@@ -19,7 +19,7 @@ export default function DashboardPage() {
     const user = getCurrentUser()
     setRole(user?.role || null)
   }, [])
-  const canInitiate = role && ["initiator_admin", "loan_officer"].includes(role)
+  const canInitiate = role && ["super_admin", "initiator_admin"].includes(role)
 
   return (
     <DashboardLayout>

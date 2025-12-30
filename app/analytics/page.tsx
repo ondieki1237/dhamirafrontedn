@@ -4,7 +4,7 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BarChart3, Users, DollarSign, AlertTriangle } from "lucide-react"
-import { useEffect, useState } from "react"
+import React, { useEffect, useState, Suspense } from "react"
 
 function centsToKES(cents?: number) {
   if (!cents && cents !== 0) return "—"
@@ -84,8 +84,9 @@ export default function AnalyticsPage() {
   }, [])
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
+    <Suspense fallback={<div />}>
+      <DashboardLayout>
+        <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Advanced Analytics</h1>
           <p className="text-muted-foreground mt-1">Comprehensive insights and performance metrics</p>
@@ -355,6 +356,7 @@ export default function AnalyticsPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </DashboardLayout>
+      </DashboardLayout>
+    </Suspense>
   )
 }

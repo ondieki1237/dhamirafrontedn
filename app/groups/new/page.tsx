@@ -20,13 +20,21 @@ export default function NewGroupPage() {
     loanOfficerId: "",
   })
 
+  const [blocked, setBlocked] = useState(false)
   useEffect(() => {
     const user = getCurrentUser()
     if (user?._id) setForm((f) => ({ ...f, loanOfficerId: user._id }))
+    if (!user?.role || !["super_admin", "loan_officer"].includes(user.role)) {
+      setBlocked(true)
+    }
   }, [])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (blocked) {
+      toast({ title: "Not allowed", description: "You do not have permission to create groups." })
+      return
+    }
     try {
       const payload = {
         name: form.name,
@@ -52,6 +60,7 @@ export default function NewGroupPage() {
           </Button>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Create Group</h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">Set up a new lending group</p>
+          {blocked && <p className="text-xs text-destructive mt-2">You do not have permission to create groups.</p>}
         </div>
 
         <Card className="neumorphic p-4 sm:p-8 bg-card border-0">
@@ -161,7 +170,7 @@ export default function NewGroupPage() {
               <Button type="button" variant="outline" onClick={() => router.back()} className="px-6 sm:px-8 py-2 sm:py-3 text-sm sm:text-base">
                 Cancel
               </Button>
-              <Button type="submit" className="px-6 sm:px-8 py-2 sm:py-3 bg-secondary text-white neumorphic neumorphic-hover border-0 text-sm sm:text-base">
+              <Button type="submit" disabled={blocked} className="px-6 sm:px-8 py-2 sm:py-3 bg-secondary text-white neumorphic neumorphic-hover border-0 text-sm sm:text-base disabled:opacity-50">
                 Create Group
               </Button>
             </div>

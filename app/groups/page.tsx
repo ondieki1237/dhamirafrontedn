@@ -29,24 +29,25 @@ export default function GroupsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const user = getCurrentUser()
+  const canCreate = user?.role && ["super_admin", "loan_officer"].includes(user.role)
   const canApprove = user?.role && ["super_admin", "initiator_admin", "approver_admin"].includes(user.role)
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        setLoading(true)
-        const data = await apiGet<any>("/api/groups")
-        const normalized = Array.isArray(data) ? data : data?.items || data?.data || data?.groups || []
-        if (mounted) setGroups(normalized)
-      } catch (e: any) {
-        const msg = e?.message || "Failed to load groups"
-        if (mounted) setError(msg)
-        toast({ title: "Error", description: msg })
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    })()
+      ; (async () => {
+        try {
+          setLoading(true)
+          const data = await apiGet<any>("/api/groups")
+          const normalized = Array.isArray(data) ? data : data?.items || data?.data || data?.groups || []
+          if (mounted) setGroups(normalized)
+        } catch (e: any) {
+          const msg = e?.message || "Failed to load groups"
+          if (mounted) setError(msg)
+          toast({ title: "Error", description: msg })
+        } finally {
+          if (mounted) setLoading(false)
+        }
+      })()
     return () => {
       mounted = false
     }
@@ -79,13 +80,15 @@ export default function GroupsPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">All Groups</h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">Manage lending groups and their performance</p>
           </div>
-          <Button
-            onClick={() => router.push("/groups/new")}
-            className="gap-2 bg-secondary text-white neumorphic neumorphic-hover border-0 w-full sm:w-auto text-sm sm:text-base py-2 sm:py-auto"
-          >
-            <Plus className="w-4 h-4" />
-            New Group
-          </Button>
+          {canCreate && (
+            <Button
+              onClick={() => router.push("/groups/new")}
+              className="gap-2 bg-secondary text-white neumorphic neumorphic-hover border-0 w-full sm:w-auto text-sm sm:text-base py-2 sm:py-auto"
+            >
+              <Plus className="w-4 h-4" />
+              New Group
+            </Button>
+          )}
         </div>
 
         <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -145,8 +148,8 @@ export default function GroupsPage() {
                 View Details
               </Button>
               {canApprove && group.status === "provisional" && (
-                <Button 
-                  variant="default" 
+                <Button
+                  variant="default"
                   className="w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm py-2 sm:py-3"
                   onClick={(e) => {
                     e.stopPropagation()

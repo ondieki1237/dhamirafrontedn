@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DollarSign } from "lucide-react"
-import { apiGet, apiPostJson } from "@/lib/api"
+import { apiGet, apiPostJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
 type LoanItem = {
@@ -38,6 +38,14 @@ export default function RepaymentsPage() {
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [form, setForm] = useState({ amount: "", paymentMethod: "mpesa", transactionId: "" })
   const [submitting, setSubmitting] = useState(false)
+  const [userRole, setUserRole] = useState<string | null>(null)
+
+  useEffect(() => {
+    const u = getCurrentUser()
+    setUserRole(u?.role || null)
+  }, [])
+
+  const canRecord = userRole && ["super_admin", "initiator_admin"].includes(userRole)
 
   function normalizeHistoryPayload(payload: any): Repayment[] {
     if (!payload) return []
@@ -51,21 +59,21 @@ export default function RepaymentsPage() {
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        setLoadingLoans(true)
-        const data = await apiGet<any>("/api/loans")
-        // Normalize possible response shapes: array | { items | data | loans }
-        const normalized = Array.isArray(data)
-          ? data
-          : data?.items || data?.data || data?.loans || []
-        if (mounted) setLoans(normalized)
-      } catch (e: any) {
-        toast({ title: "Error", description: e?.message || "Failed to load loans" })
-      } finally {
-        if (mounted) setLoadingLoans(false)
-      }
-    })()
+      ; (async () => {
+        try {
+          setLoadingLoans(true)
+          const data = await apiGet<any>("/api/loans")
+          // Normalize possible response shapes: array | { items | data | loans }
+          const normalized = Array.isArray(data)
+            ? data
+            : data?.items || data?.data || data?.loans || []
+          if (mounted) setLoans(normalized)
+        } catch (e: any) {
+          toast({ title: "Error", description: e?.message || "Failed to load loans" })
+        } finally {
+          if (mounted) setLoadingLoans(false)
+        }
+      })()
     return () => {
       mounted = false
     }
@@ -83,18 +91,18 @@ export default function RepaymentsPage() {
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      if (!selectedLoanId) return
-      try {
-        setLoadingHistory(true)
-        const data = await apiGet<any>(`/api/repayments/loan/${selectedLoanId}`)
-        if (mounted) setHistory(normalizeHistoryPayload(data))
-      } catch (e: any) {
-        toast({ title: "Error", description: e?.message || "Failed to load repayment history" })
-      } finally {
-        if (mounted) setLoadingHistory(false)
-      }
-    })()
+      ; (async () => {
+        if (!selectedLoanId) return
+        try {
+          setLoadingHistory(true)
+          const data = await apiGet<any>(`/api/repayments/loan/${selectedLoanId}`)
+          if (mounted) setHistory(normalizeHistoryPayload(data))
+        } catch (e: any) {
+          toast({ title: "Error", description: e?.message || "Failed to load repayment history" })
+        } finally {
+          if (mounted) setLoadingHistory(false)
+        }
+      })()
     return () => {
       mounted = false
     }
@@ -102,6 +110,10 @@ export default function RepaymentsPage() {
 
   const recordRepayment = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!canRecord) {
+      toast({ title: "Not allowed", description: "Only Initiator Admins can record manual repayments." })
+      return
+    }
     if (!selectedLoanId) {
       toast({ title: "Select a loan", description: "Please choose a loan first" })
       return

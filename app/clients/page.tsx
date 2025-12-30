@@ -1,15 +1,16 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import React, { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Filter, Download, X } from "lucide-react"
-import { apiGet, getCurrentUser } from "@/lib/api"
+import { Plus, Filter, Download, X, DollarSign, History, PlusCircle } from "lucide-react"
+import { apiGet, apiPutJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { SavingsAdjustmentDialog } from "@/components/savings-adjustment-dialog"
 
 type ClientItem = {
   _id: string
@@ -38,9 +39,20 @@ type ClientHistory = {
   assessments?: Array<{ _id: string; loanId?: string; totalScore: number; createdAt: string }>
   guarantors?: Array<{ _id: string; loanId?: string; clientId?: any; relationship: string; status: string }>
   repayments?: Array<{ _id: string; loanId?: string; amount: number; status: string; createdAt: string; paidBy?: any }>
+  savingsHistory?: Array<{ _id: string; clientId: string; amountKES: number; notes: string; createdAt: string }>
 }
 
 export default function ClientsPage() {
+  return (
+    <Suspense fallback={<div />}>
+      <DashboardLayout>
+        <ClientsView />
+      </DashboardLayout>
+    </Suspense>
+  )
+}
+
+function ClientsView() {
   const router = useRouter()
   const { toast } = useToast()
   const [clients, setClients] = useState<ClientItem[]>([])
@@ -52,66 +64,67 @@ export default function ClientsPage() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [clientHistory, setClientHistory] = useState<ClientHistory | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [isSavingsDialogOpen, setIsSavingsDialogOpen] = useState(false)
   const user = getCurrentUser()
-  const canOnboard = user?.role && ["super_admin", "initiator_admin", "approver_admin", "loan_officer"].includes(user.role)
+  const canOnboard = user?.role && ["super_admin", "loan_officer"].includes(user.role)
   const canApprove = user?.role && ["super_admin", "initiator_admin", "approver_admin"].includes(user.role)
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        setLoading(true)
-        // Try server-side filtered endpoint first
+      ; (async () => {
         try {
-          const path = q
-            ? `/api/clients?search=${encodeURIComponent(q)}&limit=1000`
-            : `/api/clients?limit=1000`
-          const data: any = await apiGet(path)
-          const list: ClientItem[] = Array.isArray(data)
-            ? data
-            : data?.items || data?.data || data?.clients || []
+          setLoading(true)
+          // Try server-side filtered endpoint first
+          try {
+            const path = q
+              ? `/api/clients?search=${encodeURIComponent(q)}&limit=1000`
+              : `/api/clients?limit=1000`
+            const data: any = await apiGet(path)
+            const list: ClientItem[] = Array.isArray(data)
+              ? data
+              : data?.items || data?.data || data?.clients || []
+            if (q) {
+              const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase()
+              const sq = normalize(q)
+              const exact = (list || []).filter((c) => {
+                if (!c) return false
+                const name = (c.name || "") && normalize(c.name || "")
+                const nid = (c.nationalId || "").toLowerCase().trim()
+                const id = (c._id || "").toLowerCase().trim()
+                return name === sq || nid === sq || id === sq
+              })
+              if (mounted) setClients(exact)
+            } else {
+              if (mounted) setClients(list || [])
+            }
+            return
+          } catch {
+            // fallback to fetching all clients then client-side filter
+          }
+          const allRaw = await apiGet<any>("/api/clients?limit=1000")
+          const all: ClientItem[] = Array.isArray(allRaw) ? allRaw : allRaw?.items || allRaw?.data || allRaw?.clients || []
           if (q) {
             const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase()
             const sq = normalize(q)
-            const exact = (list || []).filter((c) => {
+            const exact = (all || []).filter((c) => {
               if (!c) return false
               const name = (c.name || "") && normalize(c.name || "")
               const nid = (c.nationalId || "").toLowerCase().trim()
               const id = (c._id || "").toLowerCase().trim()
               return name === sq || nid === sq || id === sq
             })
-            if (mounted) setClients(exact)
+            if (mounted) setClients(exact || [])
           } else {
-            if (mounted) setClients(list || [])
+            if (mounted) setClients(all || [])
           }
-          return
-        } catch {
-          // fallback to fetching all clients then client-side filter
+        } catch (e: any) {
+          const msg = e?.message || "Failed to load clients"
+          if (mounted) setError(msg)
+          toast({ title: "Error", description: msg })
+        } finally {
+          if (mounted) setLoading(false)
         }
-        const allRaw = await apiGet<any>("/api/clients?limit=1000")
-        const all: ClientItem[] = Array.isArray(allRaw) ? allRaw : allRaw?.items || allRaw?.data || allRaw?.clients || []
-        if (q) {
-          const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase()
-          const sq = normalize(q)
-          const exact = (all || []).filter((c) => {
-            if (!c) return false
-            const name = (c.name || "") && normalize(c.name || "")
-            const nid = (c.nationalId || "").toLowerCase().trim()
-            const id = (c._id || "").toLowerCase().trim()
-            return name === sq || nid === sq || id === sq
-          })
-          if (mounted) setClients(exact || [])
-        } else {
-          if (mounted) setClients(all || [])
-        }
-      } catch (e: any) {
-        const msg = e?.message || "Failed to load clients"
-        if (mounted) setError(msg)
-        toast({ title: "Error", description: msg })
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    })()
+      })()
     return () => {
       mounted = false
     }
@@ -122,6 +135,7 @@ export default function ClientsPage() {
       setHistoryLoading(true)
       try {
         const data = await apiGet<ClientHistory>(`/api/clients/${clientId}/history`)
+        // Ensure savings history is included if present in response
         setClientHistory(data)
         return
       } catch {
@@ -152,7 +166,7 @@ export default function ClientsPage() {
       if (q) {
         const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase()
         const sq = normalize(q)
-        const exact = (data || []).filter((c) => {
+        const exact = (data || []).filter((c: ClientItem) => {
           if (!c) return false
           const name = (c.name || "") && normalize(c.name || "")
           const nid = (c.nationalId || "").toLowerCase().trim()
@@ -178,115 +192,113 @@ export default function ClientsPage() {
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">All Clients</h1>
-            <p className="text-muted-foreground mt-1">Manage your client database</p>
-          </div>
-          {canOnboard && (
-            <Button
-              onClick={() => router.push("/clients/new")}
-              className="gap-2 bg-secondary text-white neumorphic neumorphic-hover border-0"
-            >
-              <Plus className="w-4 h-4" />
-              New Client
-            </Button>
-          )}
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">All Clients</h1>
+          <p className="text-muted-foreground mt-1">Manage your client database</p>
         </div>
-
-        <div className="flex gap-3">
-          <Button variant="outline" className="gap-2 bg-transparent">
-            <Filter className="w-4 h-4" />
-            Filter
+        {canOnboard && (
+          <Button
+            onClick={() => router.push("/clients/new")}
+            className="gap-2 bg-secondary text-white neumorphic neumorphic-hover border-0"
+          >
+            <Plus className="w-4 h-4" />
+            New Client
           </Button>
-          <Button variant="outline" className="gap-2 bg-transparent">
-            <Download className="w-4 h-4" />
-            Export
-          </Button>
-        </div>
-
-        <Card className="neumorphic p-6 bg-card border-0">
-          <div className="overflow-x-auto">
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Loading clients…</p>
-            ) : error ? (
-              <p className="text-sm text-destructive">{error}</p>
-            ) : (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Client ID</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Name</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">National ID</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Phone</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Group</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Status</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {clients.slice(0, visibleCount).map((client) => (
-                    <tr key={client._id} className="border-b border-border hover:bg-muted/50 transition-colors">
-                      <td className="py-4 px-4 font-mono text-sm">{client._id.substring(0, 8)}...</td>
-                      <td className="py-4 px-4 font-semibold">{client.name}</td>
-                      <td className="py-4 px-4 text-muted-foreground">{client.nationalId}</td>
-                      <td className="py-4 px-4 text-muted-foreground">{client.phone || "—"}</td>
-                      <td className="py-4 px-4 text-muted-foreground">{client.groupId?.name || "—"}</td>
-                      <td className="py-4 px-4 text-muted-foreground">
-                        {client.groupId ? (
-                          <span
-                            role="link"
-                            tabIndex={0}
-                            onKeyDown={(e) => (e.key === "Enter" ? (() => {
-                              const id = typeof client.groupId === "string" ? client.groupId : client.groupId?._id
-                              if (id) router.push(`/groups/${id}`)
-                            })() : undefined)}
-                            onClick={() => {
-                              const id = typeof client.groupId === "string" ? client.groupId : client.groupId?._id
-                              if (id) router.push(`/groups/${id}`)
-                            }}
-                            className="text-primary underline hover:text-primary/80 cursor-pointer"
-                          >
-                            {typeof client.groupId === "string" ? client.groupId : client.groupId?.name || "View Group"}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="py-4 px-4">
-                        <Badge variant="outline" className={statusColors[client.status || "active" as keyof typeof statusColors]}>
-                          {(client.status || "active").toUpperCase()}
-                        </Badge>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleViewClient(client._id)}>
-                            View
-                          </Button>
-                          {canApprove && client.status === "pending" && (
-                            <Button variant="default" size="sm" onClick={() => handleApproveClient(client._id)} className="bg-green-600 hover:bg-green-700">
-                              Approve
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </Card>
-        {clients.length > visibleCount && (
-          <div className="flex justify-center mt-4">
-            <Button onClick={() => setVisibleCount((c) => c + 20)} className="px-6">
-              View more
-            </Button>
-          </div>
         )}
       </div>
+
+      <div className="flex gap-3">
+        <Button variant="outline" className="gap-2 bg-transparent">
+          <Filter className="w-4 h-4" />
+          Filter
+        </Button>
+        <Button variant="outline" className="gap-2 bg-transparent">
+          <Download className="w-4 h-4" />
+          Export
+        </Button>
+      </div>
+
+      <Card className="neumorphic p-6 bg-card border-0">
+        <div className="overflow-x-auto">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading clients…</p>
+          ) : error ? (
+            <p className="text-sm text-destructive">{error}</p>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Client ID</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Name</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">National ID</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Phone</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Group</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Status</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clients.slice(0, visibleCount).map((client) => (
+                  <tr key={client._id} className="border-b border-border hover:bg-muted/50 transition-colors">
+                    <td className="py-4 px-4 font-mono text-sm">{client._id.substring(0, 8)}...</td>
+                    <td className="py-4 px-4 font-semibold">{client.name}</td>
+                    <td className="py-4 px-4 text-muted-foreground">{client.nationalId}</td>
+                    <td className="py-4 px-4 text-muted-foreground">{client.phone || "—"}</td>
+                    <td className="py-4 px-4 text-muted-foreground">{client.groupId?.name || "—"}</td>
+                    <td className="py-4 px-4 text-muted-foreground">
+                      {client.groupId ? (
+                        <span
+                          role="link"
+                          tabIndex={0}
+                          onKeyDown={(e) => (e.key === "Enter" ? (() => {
+                            const id = typeof client.groupId === "string" ? client.groupId : (client.groupId as any)?._id
+                            if (id) router.push(`/groups/${id}`)
+                          })() : undefined)}
+                          onClick={() => {
+                            const id = typeof client.groupId === "string" ? client.groupId : (client.groupId as any)?._id
+                            if (id) router.push(`/groups/${id}`)
+                          }}
+                          className="text-primary underline hover:text-primary/80 cursor-pointer"
+                        >
+                          {typeof client.groupId === "string" ? client.groupId : client.groupId?.name || "View Group"}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="py-4 px-4">
+                      <Badge variant="outline" className={statusColors[client.status || "active" as keyof typeof statusColors]}>
+                        {(client.status || "active").toUpperCase()}
+                      </Badge>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleViewClient(client._id)}>
+                          View
+                        </Button>
+                        {canApprove && client.status === "pending" && (
+                          <Button variant="default" size="sm" onClick={() => handleApproveClient(client._id)} className="bg-green-600 hover:bg-green-700">
+                            Approve
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Card>
+      {clients.length > visibleCount && (
+        <div className="flex justify-center mt-4">
+          <Button onClick={() => setVisibleCount((c) => c + 20)} className="px-6">
+            View more
+          </Button>
+        </div>
+      )}
 
       {/* Client Details Modal */}
       <Dialog open={!!selectedClientId} onOpenChange={(open) => !open && setSelectedClientId(null)}>
@@ -367,6 +379,43 @@ export default function ClientsPage() {
                 )}
               </div>
 
+              <div className="mt-4 flex gap-3">
+                {user?.role && ["super_admin", "approver_admin"].includes(user.role) && (
+                  <Button
+                    onClick={() => setIsSavingsDialogOpen(true)}
+                    className="flex-1 gap-2 bg-primary text-white neumorphic neumorphic-hover border-0"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    Adjust Savings
+                  </Button>
+                )}
+              </div>
+
+              {/* Savings Activities */}
+              <div className="mt-6 border-t border-border pt-6">
+                <h3 className="font-bold text-base sm:text-lg mb-3 flex items-center gap-2">
+                  <History className="w-5 h-5 text-primary" />
+                  Savings Activities
+                </h3>
+                <div className="space-y-2">
+                  {!clientHistory.savingsHistory || clientHistory.savingsHistory.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic bg-muted/10 p-4 rounded-xl text-center">No recent savings activity.</p>
+                  ) : (
+                    clientHistory.savingsHistory.map((tx, idx) => (
+                      <div key={tx._id || idx} className="p-3 rounded-xl bg-muted/20 border border-border text-sm">
+                        <div className="flex justify-between items-start mb-1">
+                          <Badge variant="outline" className={tx.amountKES < 0 ? "bg-red-50 text-red-700 border-red-200" : "bg-green-50 text-green-700 border-green-200"}>
+                            {tx.amountKES < 0 ? "-" : "+"} KES {Math.abs(tx.amountKES).toLocaleString()}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-1">{tx.notes || "No notes provided"}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
               {/* Loans */}
               {Array.isArray(clientHistory.loans) && clientHistory.loans.length > 0 && (
                 <div>
@@ -443,6 +492,15 @@ export default function ClientsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+      <SavingsAdjustmentDialog
+        isOpen={isSavingsDialogOpen}
+        onOpenChange={setIsSavingsDialogOpen}
+        clientId={clientHistory?.client?._id || ""}
+        clientName={clientHistory?.client?.name || ""}
+        onSuccess={() => {
+          if (selectedClientId) fetchClientHistory(selectedClientId)
+        }}
+      />
+    </div>
   )
 }

@@ -41,17 +41,17 @@ export default function NewClientPage() {
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        const data = await apiGet<{ _id: string; name: string }[]>("/api/groups")
-        if (mounted) setGroups(data)
-      } catch (e) {
-        // optional; groups select can remain empty
-      }
-    })()
+      ; (async () => {
+        try {
+          const data = await apiGet<{ _id: string; name: string }[]>("/api/groups")
+          if (mounted) setGroups(data)
+        } catch (e) {
+          // optional; groups select can remain empty
+        }
+      })()
 
     const user = getCurrentUser()
-    if (!user?.role || !["super_admin", "initiator_admin", "approver_admin", "loan_officer"].includes(user.role)) {
+    if (!user?.role || !["super_admin", "loan_officer"].includes(user.role)) {
       setBlocked(true)
     }
     return () => {

@@ -133,7 +133,9 @@ export default function LoanDetailPage() {
   const clientId =
     typeof loan.client === "string" ? loan.client : ((loan as any)?.client?._id ?? "")
   const acceptedGuarantors = guarantors.filter((g) => g.status === "accepted")
-  const canApprove = user?.role === "approver_admin"
+  const canApprove = user?.role && ["super_admin", "approver_admin"].includes(user.role)
+  const canAssess = user?.role && ["super_admin", "loan_officer"].includes(user.role)
+  const canAddGuarantor = user?.role && ["super_admin", "loan_officer"].includes(user.role)
   const loanStatus = ((loan as any)?.status ?? "initiated") as string
   const canDisburse =
     user?.role && ["super_admin", "approver_admin"].includes(user.role) &&
@@ -229,11 +231,10 @@ export default function LoanDetailPage() {
             {/* Step 2: Add Guarantors */}
             <div className="flex items-start gap-4 pb-4 border-b border-border">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                  acceptedGuarantors.length >= 1
-                    ? "bg-green-500 text-white"
-                    : "bg-blue-500 text-white"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${acceptedGuarantors.length >= 1
+                  ? "bg-green-500 text-white"
+                  : "bg-blue-500 text-white"
+                  }`}
               >
                 {acceptedGuarantors.length >= 1 ? "✓" : "2"}
               </div>
@@ -243,7 +244,7 @@ export default function LoanDetailPage() {
                   {acceptedGuarantors.length} accepted / {guarantors.length} total
                 </p>
               </div>
-              {loanStatus === "initiated" && (
+              {loanStatus === "initiated" && canAddGuarantor && (
                 <Button
                   size="sm"
                   onClick={() => router.push(`/loans/${loanId}/add-guarantor`)}
@@ -258,9 +259,8 @@ export default function LoanDetailPage() {
             {/* Step 3: Credit Assessment */}
             <div className="flex items-start gap-4 pb-4 border-b border-border">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                  assessment ? "bg-green-500 text-white" : "bg-gray-300 text-gray-600"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${assessment ? "bg-green-500 text-white" : "bg-gray-300 text-gray-600"
+                  }`}
               >
                 {assessment ? "✓" : "3"}
               </div>
@@ -270,7 +270,7 @@ export default function LoanDetailPage() {
                   {assessment ? `Score: ${assessment.totalScore}/25` : "Not completed"}
                 </p>
               </div>
-              {(loanStatus === "initiated" || assessment) && (
+              {(loanStatus === "initiated" || assessment) && canAssess && (
                 <Button
                   size="sm"
                   onClick={() => router.push(`/loans/${loanId}/assess`)}
@@ -286,11 +286,10 @@ export default function LoanDetailPage() {
             {/* Step 4: Approve */}
             <div className="flex items-start gap-4 pb-4 border-b border-border">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                  loanStatus === "approved" || loanStatus === "disbursed"
-                    ? "bg-green-500 text-white"
-                    : "bg-gray-300 text-gray-600"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${loanStatus === "approved" || loanStatus === "disbursed"
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-300 text-gray-600"
+                  }`}
               >
                 {loanStatus === "approved" || loanStatus === "disbursed" ? "✓" : "4"}
               </div>
@@ -320,18 +319,17 @@ export default function LoanDetailPage() {
             {/* Step 5: Disburse */}
             <div className="flex items-start gap-4">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                  loanStatus === "disbursed" ? "bg-green-500 text-white" : "bg-gray-300 text-gray-600"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${loanStatus === "disbursed" ? "bg-green-500 text-white" : "bg-gray-300 text-gray-600"
+                  }`}
               >
                 {loanStatus === "disbursed" ? "✓" : "5"}
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-foreground">Disburse Loan</h3>
                 <p className="text-sm text-muted-foreground">
-                    {loanStatus === "disbursed" ? "Funds disbursed" : "Waiting for disbursement"}
+                  {loanStatus === "disbursed" ? "Funds disbursed" : "Waiting for disbursement"}
                 </p>
-                  {loanStatus === "approved" && !canDisburse && user?.role && (
+                {loanStatus === "approved" && !canDisburse && user?.role && (
                   <p className="text-xs text-destructive mt-1">
                     Only super_admin or approver_admin can disburse
                   </p>
@@ -363,8 +361,8 @@ export default function LoanDetailPage() {
                   g.status === "accepted"
                     ? "bg-green-100 text-green-700"
                     : g.status === "rejected"
-                    ? "bg-red-100 text-red-700"
-                    : "bg-yellow-100 text-yellow-700"
+                      ? "bg-red-100 text-red-700"
+                      : "bg-yellow-100 text-yellow-700"
                 return (
                   <div key={g._id} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
                     <div>

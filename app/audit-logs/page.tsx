@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import React, { useEffect, useState, Suspense } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -109,8 +109,9 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
+    <Suspense fallback={<div />}>
+      <DashboardLayout>
+        <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Audit Logs</h1>
@@ -207,6 +208,7 @@ export default function AuditLogsPage() {
           )}
         </Card>
       </div>
-    </DashboardLayout>
+      </DashboardLayout>
+    </Suspense>
   )
 }

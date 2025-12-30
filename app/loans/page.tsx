@@ -42,24 +42,24 @@ export default function LoansPage() {
     setUserRole(user?.role || null)
   }, [])
 
-  const canInitiate = userRole && ["initiator_admin", "loan_officer"].includes(userRole)
+  const canInitiate = userRole && ["super_admin", "initiator_admin"].includes(userRole)
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        setLoading(true)
-        const data = await apiGet<any>("/api/loans")
-        const normalized = Array.isArray(data) ? data : data?.items || data?.data || data?.loans || []
-        if (mounted) setLoans(normalized)
-      } catch (e: any) {
-        const msg = e?.message || "Failed to load loans"
-        if (mounted) setError(msg)
-        toast({ title: "Error", description: msg })
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    })()
+      ; (async () => {
+        try {
+          setLoading(true)
+          const data = await apiGet<any>("/api/loans")
+          const normalized = Array.isArray(data) ? data : data?.items || data?.data || data?.loans || []
+          if (mounted) setLoans(normalized)
+        } catch (e: any) {
+          const msg = e?.message || "Failed to load loans"
+          if (mounted) setError(msg)
+          toast({ title: "Error", description: msg })
+        } finally {
+          if (mounted) setLoading(false)
+        }
+      })()
     return () => {
       mounted = false
     }
