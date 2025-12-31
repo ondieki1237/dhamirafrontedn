@@ -50,11 +50,7 @@ export default function RepaymentsPage() {
   function normalizeHistoryPayload(payload: any): Repayment[] {
     if (!payload) return []
     if (Array.isArray(payload)) return payload
-    if (payload.repayments && Array.isArray(payload.repayments)) return payload.repayments
-    // Some APIs return { history: [...] } or { data: [...] }
-    if (payload.history && Array.isArray(payload.history)) return payload.history
-    if (payload.data && Array.isArray(payload.data)) return payload.data
-    return []
+    return payload.data || []
   }
 
   useEffect(() => {
@@ -62,11 +58,8 @@ export default function RepaymentsPage() {
       ; (async () => {
         try {
           setLoadingLoans(true)
-          const data = await apiGet<any>("/api/loans")
-          // Normalize possible response shapes: array | { items | data | loans }
-          const normalized = Array.isArray(data)
-            ? data
-            : data?.items || data?.data || data?.loans || []
+          const raw = await apiGet<any>("/api/loans")
+          const normalized = Array.isArray(raw) ? raw : (raw?.data || [])
           if (mounted) setLoans(normalized)
         } catch (e: any) {
           toast({ title: "Error", description: e?.message || "Failed to load loans" })

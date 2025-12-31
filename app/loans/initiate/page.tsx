@@ -3,18 +3,26 @@
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, UserPlus, UserCheck } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { apiGet, apiPostJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { useSearchParams } from "next/navigation"
 
+type GuarantorFormItem = {
+  name: string
+  clientNationalId: string
+  phone: string
+  isMember: boolean
+  relationship: string
+}
+
 export default function InitiateLoanPage() {
   const router = useRouter()
   const { toast } = useToast()
   const search = useSearchParams()
-  const [clients, setClients] = useState<{ name: string; nationalId: string }[]>([])
+  const [clients, setClients] = useState<any[]>([])
   const [groupInfo, setGroupInfo] = useState<any | null>(null)
   const [groupLoading, setGroupLoading] = useState(false)
   const [groupInactiveReason, setGroupInactiveReason] = useState<string | null>(null)
@@ -26,16 +34,22 @@ export default function InitiateLoanPage() {
     term: "6",
     interestRatePercent: "",
     purpose: "",
-    guarantors: [] as Array<{ clientNationalId: string; relationship: string; idCopyUrl?: string; photoUrl?: string; hasRepaidFafaBefore?: boolean }>,
+    guarantors: [
+      { name: "", clientNationalId: "", phone: "", isMember: true, relationship: "" },
+      { name: "", clientNationalId: "", phone: "", isMember: true, relationship: "" },
+      { name: "", clientNationalId: "", phone: "", isMember: true, relationship: "" },
+    ] as GuarantorFormItem[],
   })
   const [submitting, setSubmitting] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
 
   useEffect(() => {
     let mounted = true
       ; (async () => {
         try {
-          const data = await apiGet<{ name: string; nationalId: string }[]>("/api/clients")
-          if (mounted) setClients(data)
+          const raw = await apiGet<any>("/api/clients?limit=1000")
+          const list = Array.isArray(raw) ? raw : (raw?.data || [])
+          if (mounted) setClients(list)
         } catch (e) {
           // ignore; form still usable
         }
@@ -65,8 +79,9 @@ export default function InitiateLoanPage() {
       ; (async () => {
         try {
           setGroupLoading(true)
-          const g = await apiGet(`/api/groups/${gid}`)
+          const raw = await apiGet(`/api/groups/${gid}`)
           if (!mounted) return
+          const g = raw?.data || raw
           setGroupInfo(g)
           // If group explicitly carries an inactive reason field, expose it
           const reason = (g && (g.inactiveReason || g.reason || g.message)) || null
@@ -133,16 +148,42 @@ export default function InitiateLoanPage() {
       payload.term = Number(form.term)
       if (form.interestRatePercent) payload.interestRatePercent = Number(form.interestRatePercent)
       if (form.purpose) payload.purpose = form.purpose
-      if (Array.isArray(form.guarantors) && form.guarantors.length > 0) payload.guarantors = form.guarantors
+
+      const validGuarantors = form.guarantors.filter(g => g.name.trim() && g.clientNationalId.trim())
+      if (validGuarantors.length < 3) {
+        toast({
+          title: "Insufficient Guarantors",
+          description: "At least 3 guarantors are required for loan application.",
+          variant: "destructive"
+        })
+        return
+      }
+
+      // Try to enrich guarantors with clientIds if they exist in our list
+      const enrichedGuarantors = validGuarantors.map(g => {
+        const client = clients.find(c => c.nationalId === g.clientNationalId)
+        return {
+          ...g,
+          clientId: client ? client._id : null
+        }
+      })
+
+      payload.guarantors = enrichedGuarantors
+
       await apiPostJson("/api/loans/initiate", payload)
-      toast({ title: "Loan initiated" })
-      router.push("/loans")
+      setShowSuccess(true)
     } catch (e: any) {
-      const msg = e?.message || "Failed to initiate loan"
+      let msg = e?.message || "Failed to initiate loan"
+
+      // Specifically handle the duplicate key error for guarantors
+      if (msg.includes("duplicate key error") || msg.includes("E11000")) {
+        msg = "Guarantor Error: One or more of the selected guarantors are already assigned to this loan. Please ensure National IDs are unique."
+      }
+
       if (msg.toLowerCase().includes("group not active") || msg.toLowerCase().includes("not_active") || msg.toLowerCase().includes("inactive")) {
         setGroupInactiveReason(msg)
       }
-      toast({ title: "Error", description: msg })
+      toast({ title: "Error", description: msg, variant: "destructive" })
     } finally {
       setSubmitting(false)
     }
@@ -217,7 +258,7 @@ export default function InitiateLoanPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 pt-4 border-t border-border">
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Duration (months)</label>
                 <input
@@ -239,18 +280,108 @@ export default function InitiateLoanPage() {
                   placeholder="6"
                 />
               </div>
-              <div>
-                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Guarantors (optional)</label>
-                <input
-                  type="text"
-                  value={form.guarantors.map(g => g.clientNationalId).join(",")}
-                  onChange={(e) => {
-                    const ids = e.target.value.split(",").map(s => s.trim()).filter(Boolean)
-                    setForm({ ...form, guarantors: ids.map(id => ({ clientNationalId: id, relationship: "" })) })
-                  }}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
-                  placeholder="comma-separated national IDs"
-                />
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-border">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs sm:text-sm font-semibold text-foreground">Guarantors (At least 3 required)</label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setForm({ ...form, guarantors: [...form.guarantors, { name: "", clientNationalId: "", phone: "", isMember: true, relationship: "" }] })}
+                  className="h-8 gap-1 text-xs neumorphic"
+                >
+                  <Plus className="w-3 h-3" /> Add More
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                {form.guarantors.map((g, idx) => (
+                  <div key={idx} className="p-4 rounded-xl bg-background/50 border border-border/50 space-y-3 relative group">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Guarantor {idx + 1}</span>
+                      {form.guarantors.length > 3 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = [...form.guarantors];
+                            next.splice(idx, 1);
+                            setForm({ ...form, guarantors: next });
+                          }}
+                          className="text-destructive hover:scale-110 transition-transform p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Full Name"
+                        value={g.name}
+                        onChange={(e) => {
+                          const next = [...form.guarantors];
+                          next[idx].name = e.target.value;
+                          setForm({ ...form, guarantors: next });
+                        }}
+                        className="px-3 py-2 bg-background rounded-lg border-0 neumorphic-inset focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                        required
+                      />
+                      <input
+                        type="text"
+                        placeholder="National ID"
+                        value={g.clientNationalId}
+                        onChange={(e) => {
+                          const next = [...form.guarantors];
+                          next[idx].clientNationalId = e.target.value;
+                          setForm({ ...form, guarantors: next });
+                        }}
+                        className="px-3 py-2 bg-background rounded-lg border-0 neumorphic-inset focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                        required
+                      />
+                      <input
+                        type="text"
+                        placeholder="Phone Number"
+                        value={g.phone}
+                        onChange={(e) => {
+                          const next = [...form.guarantors];
+                          next[idx].phone = e.target.value;
+                          setForm({ ...form, guarantors: next });
+                        }}
+                        className="px-3 py-2 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                      />
+                      <div className="flex items-center gap-2 px-2 h-9 bg-background rounded-lg neumorphic-inset">
+                        <span className="text-[10px] font-semibold text-muted-foreground">Member?</span>
+                        <div className="flex flex-1 gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = [...form.guarantors];
+                              next[idx].isMember = true;
+                              setForm({ ...form, guarantors: next });
+                            }}
+                            className={`flex-1 py-1 rounded text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${g.isMember ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:bg-muted"}`}
+                          >
+                            <UserCheck className="w-3 h-3" /> Yes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = [...form.guarantors];
+                              next[idx].isMember = false;
+                              setForm({ ...form, guarantors: next });
+                            }}
+                            className={`flex-1 py-1 rounded text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${!g.isMember ? "bg-secondary text-white shadow-sm" : "text-muted-foreground hover:bg-muted"}`}
+                          >
+                            <UserPlus className="w-3 h-3" /> No
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -276,6 +407,51 @@ export default function InitiateLoanPage() {
           </form>
         </Card>
       </div>
+
+      {showSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-300">
+          <Card className="max-w-md w-full p-8 neumorphic border-0 text-center space-y-6 scale-up-center">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <UserCheck className="w-10 h-10 text-green-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">Loan Successfully Initiated!</h2>
+              <p className="text-muted-foreground mt-2">The application has been saved and is now awaiting assessment.</p>
+            </div>
+            <div className="flex flex-col gap-3 pt-4">
+              <Button
+                onClick={() => router.push("/loans")}
+                className="w-full py-4 bg-primary text-white neumorphic neumorphic-hover border-0 font-bold"
+              >
+                View Loans List
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setForm({
+                    clientNationalId: "",
+                    groupId: "",
+                    product: "business",
+                    amountKES: "",
+                    term: "6",
+                    interestRatePercent: "",
+                    purpose: "",
+                    guarantors: [
+                      { name: "", clientNationalId: "", phone: "", isMember: true, relationship: "" },
+                      { name: "", clientNationalId: "", phone: "", isMember: true, relationship: "" },
+                      { name: "", clientNationalId: "", phone: "", isMember: true, relationship: "" },
+                    ],
+                  });
+                  setShowSuccess(false);
+                }}
+                className="w-full py-4 border-0 neumorphic"
+              >
+                Initiate Another Loan
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </DashboardLayout>
   )
 }

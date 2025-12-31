@@ -3,12 +3,14 @@
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Plus, DollarSign, History, MinusCircle, PlusCircle } from "lucide-react"
+import { ArrowLeft, Plus, DollarSign, History, MinusCircle, PlusCircle, Search, Users, Loader2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
-import { apiGet, apiPostJson, getCurrentUser } from "@/lib/api"
+import { apiGet, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
+import { SavingsAdjustmentDialog } from "@/components/savings-adjustment-dialog"
+import { Input } from "@/components/ui/input"
 
 export default function SavingsPage() {
     const router = useRouter()
@@ -17,89 +19,50 @@ export default function SavingsPage() {
     const [clients, setClients] = useState<any[]>([])
     const [history, setHistory] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
-    const [submitting, setSubmitting] = useState(false)
     const [mounted, setMounted] = useState(false)
     const [user, setUser] = useState<any>(null)
+    const [searchQuery, setSearchQuery] = useState("")
+    const [activeTab, setActiveTab] = useState("clients")
 
-    const [form, setForm] = useState({
-        clientId: "",
-        amountKES: "",
-        type: "add" as "add" | "deduct",
-        notes: "Weekly savings deposit",
-    })
+    // Modal state
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [selectedClient, setSelectedClient] = useState<any>(null)
+
+    const fetchData = async () => {
+        try {
+            setLoading(true)
+            // Fetch Clients (matching user's request: page=1&limit=100)
+            const clientsDataRaw = await apiGet<any>("/api/clients?page=1&limit=100")
+            const clientsData = Array.isArray(clientsDataRaw) ? clientsDataRaw : (clientsDataRaw?.data || [])
+
+            // Fetch Savings History
+            const historyDataRaw = await apiGet<any>("/api/savings")
+            const historyData = Array.isArray(historyDataRaw) ? historyDataRaw : (historyDataRaw?.data || [])
+
+            setClients(clientsData)
+            setHistory(historyData)
+        } catch (e: any) {
+            toast({ title: "Error", description: e?.message || "Failed to load data" })
+        } finally {
+            setLoading(false)
+        }
+    }
 
     useEffect(() => {
         setMounted(true)
         setUser(getCurrentUser())
-
-        const cId = searchParams.get("clientId")
-        if (cId) {
-            setForm(f => ({ ...f, clientId: cId }))
-        }
-
-        let isMounted = true
-        const fetchData = async () => {
-            try {
-                // Fetch Clients
-                const clientsDataRaw = await apiGet<any>("/api/clients?limit=1000")
-                const clientsData = Array.isArray(clientsDataRaw) ? clientsDataRaw : (clientsDataRaw?.items || clientsDataRaw?.data || [])
-
-                // Fetch Savings History
-                const historyDataRaw = await apiGet<any>("/api/savings")
-                const historyData = Array.isArray(historyDataRaw) ? historyDataRaw : (historyDataRaw?.items || historyDataRaw?.data || [])
-
-                if (isMounted) {
-                    setClients(clientsData)
-                    setHistory(historyData)
-                    setLoading(false)
-                }
-            } catch (e: any) {
-                if (isMounted) {
-                    toast({ title: "Error", description: e?.message || "Failed to load data" })
-                    setLoading(false)
-                }
-            }
-        }
         fetchData()
-        return () => { isMounted = false }
-    }, [toast])
+    }, [])
 
-    const canAddSavings = user?.role && ["super_admin", "approver_admin"].includes(user.role)
+    const filteredClients = clients.filter(c =>
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.nationalId?.includes(searchQuery) ||
+        c.phone?.includes(searchQuery)
+    )
 
-    const onSubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!canAddSavings) {
-            toast({ title: "Not allowed", description: "Only Approver Admins can adjust savings." })
-            return
-        }
-
-        try {
-            setSubmitting(true)
-            const amount = Number(form.amountKES)
-            const finalAmount = form.type === "deduct" ? -Math.abs(amount) : Math.abs(amount)
-
-            await apiPostJson("/api/savings", {
-                clientId: form.clientId,
-                amountKES: finalAmount,
-                notes: form.notes
-            })
-
-            toast({ title: "Success", description: `Savings ${form.type === "add" ? "added" : "deducted"} successfully` })
-
-            // Refresh data
-            setLoading(true)
-            const historyDataRaw = await apiGet<any>("/api/savings")
-            const historyData = Array.isArray(historyDataRaw) ? historyDataRaw : (historyDataRaw?.items || historyDataRaw?.data || [])
-            setHistory(historyData)
-
-            // Reset form partly
-            setForm({ ...form, amountKES: "", notes: "" })
-            setLoading(false)
-        } catch (e: any) {
-            toast({ title: "Error", description: e?.message || "Failed to log savings adjustment" })
-        } finally {
-            setSubmitting(false)
-        }
+    const handleAdjust = (client: any) => {
+        setSelectedClient(client)
+        setIsDialogOpen(true)
     }
 
     if (!mounted) return null // Prevent hydration mismatch by not rendering anything role-dependent on server
@@ -117,23 +80,109 @@ export default function SavingsPage() {
                             <DollarSign className="w-8 h-8 text-primary" />
                             Savings Management
                         </h1>
-                        <p className="text-muted-foreground mt-1">View transaction history and manage client savings deposits.</p>
+                        <p className="text-muted-foreground mt-1">Manage client savings balances and view transaction history.</p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* History List - All Users */}
-                    <div className="lg:col-span-2 space-y-4">
-                        <div className="flex items-center gap-2 mb-2">
-                            <History className="w-5 h-5 text-primary" />
-                            <h2 className="text-xl font-bold text-foreground">Transaction History</h2>
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex bg-muted p-1 rounded-xl w-fit">
+                            <button
+                                onClick={() => setActiveTab("clients")}
+                                className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === "clients" ? "bg-background shadow font-bold" : "text-muted-foreground"}`}
+                            >
+                                Clients
+                            </button>
+                            <button
+                                onClick={() => setActiveTab("history")}
+                                className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === "history" ? "bg-background shadow font-bold" : "text-muted-foreground"}`}
+                            >
+                                History
+                            </button>
                         </div>
 
+                        {activeTab === "clients" && (
+                            <div className="relative w-full max-w-sm">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Search by name, ID or phone..."
+                                    className="pl-10 neumorphic-inset bg-background border-0 h-11"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {activeTab === "clients" ? (
                         <Card className="neumorphic bg-card border-0 overflow-hidden">
-                            {loading ? (
-                                <div className="p-10 text-center text-muted-foreground">Loading history...</div>
+                            {loading && clients.length === 0 ? (
+                                <div className="p-20 flex flex-col items-center justify-center text-muted-foreground">
+                                    <Loader2 className="w-10 h-10 animate-spin mb-4" />
+                                    <p>Loading clients...</p>
+                                </div>
+                            ) : filteredClients.length === 0 ? (
+                                <div className="p-20 text-center text-muted-foreground">
+                                    <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                                    <p>No clients found matching your search.</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-muted/50 border-b border-border">
+                                                <th className="px-6 py-4 text-sm font-semibold">Name</th>
+                                                <th className="px-6 py-4 text-sm font-semibold">Group</th>
+                                                <th className="px-6 py-4 text-sm font-semibold text-right">Current Savings</th>
+                                                <th className="px-6 py-4 text-sm font-semibold text-center">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border">
+                                            {filteredClients.map((client) => (
+                                                <tr key={client._id} className="hover:bg-muted/30 transition-colors group">
+                                                    <td className="px-6 py-4">
+                                                        <p className="font-bold text-foreground">{client.name}</p>
+                                                        <p className="text-xs text-muted-foreground">{client.nationalId}</p>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border font-medium">
+                                                            {client.groupId?.name || "No Group"}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <p className="font-bold text-primary">
+                                                            KES {((client.savings_balance_cents || 0) / 100).toLocaleString()}
+                                                        </p>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => handleAdjust(client)}
+                                                            className="h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white shadow-sm transition-transform active:scale-95"
+                                                        >
+                                                            <PlusCircle className="w-4 h-4 mr-2" />
+                                                            Adjust
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </Card>
+                    ) : (
+                        <Card className="neumorphic bg-card border-0 overflow-hidden">
+                            {loading && history.length === 0 ? (
+                                <div className="p-20 flex flex-col items-center justify-center text-muted-foreground">
+                                    <Loader2 className="w-10 h-10 animate-spin mb-4" />
+                                    <p>Loading history...</p>
+                                </div>
                             ) : history.length === 0 ? (
-                                <div className="p-10 text-center text-muted-foreground">No savings transactions found.</div>
+                                <div className="p-20 text-center text-muted-foreground">
+                                    <History className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                                    <p>No savings transactions found.</p>
+                                </div>
                             ) : (
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left border-collapse">
@@ -169,104 +218,20 @@ export default function SavingsPage() {
                                 </div>
                             )}
                         </Card>
-                    </div>
-
-                    {/* Adjustment Form - Only Approver/Admin */}
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2 mb-2">
-                            <PlusCircle className="w-5 h-5 text-primary" />
-                            <h2 className="text-xl font-bold text-foreground">New Adjustment</h2>
-                        </div>
-
-                        <Card className="neumorphic p-6 bg-card border-0 relative">
-                            {!canAddSavings ? (
-                                <div className="text-center py-10">
-                                    <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <Plus className="w-6 h-6 text-muted-foreground" />
-                                    </div>
-                                    <p className="font-semibold text-foreground">Restricted Access</p>
-                                    <p className="text-xs text-muted-foreground mt-2 px-4">
-                                        Only Super Admins and Approver Admins can manually adjust savings.
-                                    </p>
-                                </div>
-                            ) : (
-                                <form className="space-y-5" onSubmit={onSubmit}>
-                                    <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-xl">
-                                        <button
-                                            type="button"
-                                            onClick={() => setForm({ ...form, type: 'add' })}
-                                            className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${form.type === 'add' ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:bg-background/50'}`}
-                                        >
-                                            <PlusCircle className="w-4 h-4" />
-                                            Add
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setForm({ ...form, type: 'deduct' })}
-                                            className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${form.type === 'deduct' ? 'bg-red-600 text-white shadow-md' : 'text-muted-foreground hover:bg-background/50'}`}
-                                        >
-                                            <MinusCircle className="w-4 h-4" />
-                                            Deduct
-                                        </button>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2 ml-1">Select Client</label>
-                                        <select
-                                            value={form.clientId}
-                                            onChange={(e) => setForm({ ...form, clientId: e.target.value })}
-                                            required
-                                            className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
-                                        >
-                                            <option value="">Choose a client</option>
-                                            {clients.map((c) => (
-                                                <option key={c._id} value={c._id}>
-                                                    {c.name} — Bal: KES {((c.savings_balance_cents || 0) / 100).toLocaleString()}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2 ml-1">Amount (KES)</label>
-                                        <div className="relative">
-                                            <input
-                                                type="number"
-                                                value={form.amountKES}
-                                                onChange={(e) => setForm({ ...form, amountKES: e.target.value })}
-                                                className="w-full pl-10 pr-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
-                                                placeholder="0.00"
-                                                required
-                                            />
-                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">KES</span>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2 ml-1">Description / Reason</label>
-                                        <textarea
-                                            rows={3}
-                                            value={form.notes}
-                                            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                                            className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm resize-none"
-                                            placeholder="e.g. Weekly deposit, Administrative correction..."
-                                            required
-                                        />
-                                    </div>
-
-                                    <Button
-                                        type="submit"
-                                        disabled={submitting || !form.clientId || !form.amountKES}
-                                        className={`w-full py-4 h-auto rounded-xl font-bold shadow-lg transition-transform active:scale-95 border-0 ${form.type === 'add' ? 'bg-primary text-white' : 'bg-red-600 text-white'}`}
-                                    >
-                                        {submitting ? "Processing..." : `Log ${form.type === 'add' ? 'Addition' : 'Deduction'}`}
-                                    </Button>
-                                </form>
-                            )}
-                        </Card>
-                    </div>
+                    )}
                 </div>
             </div>
+
+            {selectedClient && (
+                <SavingsAdjustmentDialog
+                    isOpen={isDialogOpen}
+                    onOpenChange={setIsDialogOpen}
+                    clientId={selectedClient._id}
+                    clientName={selectedClient.name}
+                    currentBalanceCents={selectedClient.savings_balance_cents || 0}
+                    onSuccess={fetchData}
+                />
+            )}
         </DashboardLayout>
     )
 }

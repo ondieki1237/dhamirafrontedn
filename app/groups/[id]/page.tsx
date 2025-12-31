@@ -19,7 +19,7 @@ type Group = {
   meetingDay?: string
   meetingTime?: string
   loanOfficerId?: string | { _id: string; username?: string; name?: string }
-  members?: Array<{ name?: string; nationalId?: string; _id?: string }>
+  members?: Array<{ name?: string; nationalId?: string; _id: string; savings_balance_cents?: number }>
   signatories?: Array<{ role: string; memberNationalId: string }>
 }
 
@@ -28,6 +28,7 @@ type ClientItem = {
   name?: string
   nationalId?: string
   groupId?: string | { _id?: string }
+  savings_balance_cents?: number
 }
 
 export default function GroupDetailPage() {
@@ -48,7 +49,7 @@ export default function GroupDetailPage() {
   })
 
   const [isSavingsDialogOpen, setIsSavingsDialogOpen] = useState(false)
-  const [targetClient, setTargetClient] = useState<{ id: string, name: string } | null>(null)
+  const [targetClient, setTargetClient] = useState<{ id: string, name: string, balance: number } | null>(null)
   const [savingsHistory, setSavingsHistory] = useState<any[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
 
@@ -59,13 +60,15 @@ export default function GroupDetailPage() {
     try {
       setLoading(true)
       // Prefer detail endpoint; fallback to list if not available
-      let data: Group | null = null
+      let raw: any = null
       try {
-        data = await apiGet<Group>(`/api/groups/${groupId}`)
+        raw = await apiGet<any>(`/api/groups/${groupId}`)
       } catch {
-        const list = await apiGet<Group[]>(`/api/groups`)
-        data = list.find((g) => g._id === groupId) || null
+        const listRaw = await apiGet<any>(`/api/groups`)
+        const list = Array.isArray(listRaw) ? listRaw : listRaw?.data || listRaw?.items || []
+        raw = list.find((g: any) => g._id === groupId) || null
       }
+      const data = raw?.data || raw
       if (!data) {
         toast({ title: "Not found", description: "Group not found" })
         router.push("/groups")
@@ -74,7 +77,7 @@ export default function GroupDetailPage() {
       setGroup(data)
 
       // If existing signatories, prefill
-      const existing = (data.signatories || []).reduce<Record<string, string>>((acc, s) => {
+      const existing = (data.signatories || []).reduce((acc: Record<string, string>, s: { role: string; memberNationalId: string }) => {
         acc[s.role] = s.memberNationalId
         return acc
       }, {})
@@ -95,14 +98,16 @@ export default function GroupDetailPage() {
       setMembersLoading(true)
       // Try server-side filter first
       try {
-        const data = await apiGet<ClientItem[]>(`/api/clients?groupId=${groupId}`)
-        setMembers(data || [])
+        const raw = await apiGet<any>(`/api/clients?groupId=${groupId}`)
+        const list = Array.isArray(raw) ? raw : (raw?.data || [])
+        setMembers(list)
         return
       } catch {
         // fallback to fetching all clients and filtering
       }
-      const all = await apiGet<ClientItem[]>(`/api/clients`)
-      const filtered = (all || []).filter((c) => {
+      const raw = await apiGet<any>(`/api/clients`)
+      const all = Array.isArray(raw) ? raw : (raw?.data || [])
+      const filtered = (all || []).filter((c: any) => {
         if (!c) return false
         if (!c.groupId) return false
         if (typeof c.groupId === "string") return c.groupId === groupId
@@ -126,8 +131,9 @@ export default function GroupDetailPage() {
   const fetchGroupSavingsHistory = async () => {
     try {
       setHistoryLoading(true)
-      const data = await apiGet<any[]>(`/api/savings?groupId=${groupId}`)
-      setSavingsHistory(Array.isArray(data) ? data : [])
+      const raw = await apiGet<any>(`/api/savings?groupId=${groupId}`)
+      const data = Array.isArray(raw) ? raw : (raw?.data || [])
+      setSavingsHistory(data)
     } catch {
       // silent
     } finally {
@@ -311,7 +317,7 @@ export default function GroupDetailPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        setTargetClient({ id: m._id, name: m.name || 'Member' })
+                        setTargetClient({ id: m._id, name: m.name || 'Member', balance: m.savings_balance_cents || 0 })
                         setIsSavingsDialogOpen(true)
                       }}
                       className="h-8 w-8 p-0 rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
@@ -331,6 +337,7 @@ export default function GroupDetailPage() {
         onOpenChange={setIsSavingsDialogOpen}
         clientId={targetClient?.id || ""}
         clientName={targetClient?.name || ""}
+        currentBalanceCents={targetClient?.balance || 0}
         onSuccess={() => {
           fetchMembers()
           fetchGroupSavingsHistory()

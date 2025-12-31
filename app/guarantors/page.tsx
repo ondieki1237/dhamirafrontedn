@@ -26,7 +26,8 @@ export default function GuarantorsPage() {
   const fetchGuarantors = async () => {
     try {
       setLoading(true)
-      const data = await apiGet<Guarantor[]>("/api/guarantors")
+      const raw = await apiGet<any>("/api/guarantors")
+      const data = Array.isArray(raw) ? raw : (raw?.data || [])
       setGuarantors(data)
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load guarantors" })
@@ -98,8 +99,8 @@ export default function GuarantorsPage() {
                         g.status === "accepted"
                           ? "bg-green-100 text-green-700"
                           : g.status === "rejected"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-yellow-100 text-yellow-700"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-yellow-100 text-yellow-700"
                       return (
                         <tr key={g._id} className="border-b border-border hover:bg-muted/50 transition-colors">
                           <td className="py-4 px-4 font-semibold text-sm">{clientName}</td>
@@ -142,8 +143,8 @@ export default function GuarantorsPage() {
                     g.status === "accepted"
                       ? "bg-green-100 text-green-700"
                       : g.status === "rejected"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-yellow-100 text-yellow-700"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-yellow-100 text-yellow-700"
                   return (
                     <div key={g._id} className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
                       <div className="flex items-start justify-between gap-2">

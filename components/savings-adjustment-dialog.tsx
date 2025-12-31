@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, MinusCircle, DollarSign } from "lucide-react"
-import { apiPostJson } from "@/lib/api"
+import { apiPostJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
 interface SavingsAdjustmentDialogProps {
@@ -12,6 +12,7 @@ interface SavingsAdjustmentDialogProps {
     onOpenChange: (open: boolean) => void
     clientId: string
     clientName: string
+    currentBalanceCents: number
     onSuccess?: () => void
 }
 
@@ -20,9 +21,11 @@ export function SavingsAdjustmentDialog({
     onOpenChange,
     clientId,
     clientName,
+    currentBalanceCents,
     onSuccess
 }: SavingsAdjustmentDialogProps) {
     const { toast } = useToast()
+    const user = getCurrentUser()
     const [submitting, setSubmitting] = useState(false)
     const [form, setForm] = useState({
         amountKES: "",
@@ -30,24 +33,42 @@ export function SavingsAdjustmentDialog({
         notes: "Weekly savings deposit",
     })
 
+    const isInitiatorOnly = user?.role === "initiator_admin"
+    const canDeduct = !isInitiatorOnly
+
     const onSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         try {
             setSubmitting(true)
-            const amount = Number(form.amountKES)
-            if (isNaN(amount) || amount <= 0) {
+            const amountKES = Number(form.amountKES)
+            if (isNaN(amountKES) || amountKES <= 0) {
                 toast({ title: "Invalid amount", description: "Please enter a positive numeric value." })
                 return
             }
-            const finalAmount = form.type === "deduct" ? -Math.abs(amount) : Math.abs(amount)
 
-            await apiPostJson("/api/savings", {
-                clientId,
-                amountKES: finalAmount,
-                notes: form.notes
-            })
+            if (isInitiatorOnly) {
+                // Use the client-scoped add-only endpoint
+                await apiPostJson(`/api/clients/${clientId}/savings`, {
+                    amountKES: amountKES
+                })
+            } else {
+                // Use the audited /api/savings endpoint (supports both add and deduct)
+                const amountCents = Math.round(amountKES * 100) * (form.type === "deduct" ? -1 : 1)
 
-            toast({ title: "Success", description: `Savings ${form.type === "add" ? "added" : "deducted"} successfully` })
+                // Safety check: prevent negative balance on frontend too
+                if (form.type === "deduct" && (currentBalanceCents + amountCents) < 0) {
+                    toast({ title: "Insufficient funds", description: "This deduction would result in a negative balance." })
+                    return
+                }
+
+                await apiPostJson("/api/savings", {
+                    clientId,
+                    amountCents,
+                    notes: form.notes
+                })
+            }
+
+            toast({ title: "Success", description: "Savings adjustment recorded successfully" })
             onOpenChange(false)
             setForm({ amountKES: "", type: "add", notes: "Weekly savings deposit" })
             onSuccess?.()
@@ -69,24 +90,31 @@ export function SavingsAdjustmentDialog({
                 </DialogHeader>
 
                 <form className="space-y-5 mt-4" onSubmit={onSubmit}>
-                    <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-xl">
-                        <button
-                            type="button"
-                            onClick={() => setForm({ ...form, type: 'add' })}
-                            className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${form.type === 'add' ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:bg-background/50'}`}
-                        >
-                            <PlusCircle className="w-4 h-4" />
-                            Add
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setForm({ ...form, type: 'deduct' })}
-                            className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${form.type === 'deduct' ? 'bg-red-600 text-white shadow-md' : 'text-muted-foreground hover:bg-background/50'}`}
-                        >
-                            <MinusCircle className="w-4 h-4" />
-                            Deduct
-                        </button>
+                    <div className="bg-muted/30 p-4 rounded-xl border border-border flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Current Balance</span>
+                        <span className="font-bold text-primary">KES {(currentBalanceCents / 100).toLocaleString()}</span>
                     </div>
+
+                    {canDeduct && (
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-xl">
+                            <button
+                                type="button"
+                                onClick={() => setForm({ ...form, type: 'add' })}
+                                className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${form.type === 'add' ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:bg-background/50'}`}
+                            >
+                                <PlusCircle className="w-4 h-4" />
+                                Add
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setForm({ ...form, type: 'deduct' })}
+                                className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${form.type === 'deduct' ? 'bg-red-600 text-white shadow-md' : 'text-muted-foreground hover:bg-background/50'}`}
+                            >
+                                <MinusCircle className="w-4 h-4" />
+                                Deduct
+                            </button>
+                        </div>
+                    )}
 
                     <div>
                         <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2 ml-1">Amount (KES)</label>
@@ -103,17 +131,19 @@ export function SavingsAdjustmentDialog({
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2 ml-1">Description / Reason</label>
-                        <textarea
-                            rows={3}
-                            value={form.notes}
-                            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                            className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm resize-none"
-                            placeholder="e.g. Weekly deposit, Administrative correction..."
-                            required
-                        />
-                    </div>
+                    {!isInitiatorOnly && (
+                        <div>
+                            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-2 ml-1">Description / Reason</label>
+                            <textarea
+                                rows={3}
+                                value={form.notes}
+                                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                                className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm resize-none"
+                                placeholder="e.g. Weekly deposit, Administrative correction..."
+                                required
+                            />
+                        </div>
+                    )}
 
                     <div className="flex gap-3">
                         <Button

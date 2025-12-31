@@ -1,14 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Plus, Filter, Download } from "lucide-react"
+import { Plus, Filter, Download, ArrowUpDown, ChevronUp, ChevronDown, CheckSquare, Square } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { apiGet, getCurrentUser } from "@/lib/api"
+import { apiGet, apiPostJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
 type LoanItem = {
@@ -36,6 +36,9 @@ export default function LoansPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [sortConfig, setSortConfig] = useState<{ key: keyof LoanItem | "clientName"; direction: "asc" | "desc" } | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkSubmitting, setBulkSubmitting] = useState(false)
 
   useEffect(() => {
     const user = getCurrentUser()
@@ -43,27 +46,94 @@ export default function LoansPage() {
   }, [])
 
   const canInitiate = userRole && ["super_admin", "initiator_admin"].includes(userRole)
+  const canBulkAction = userRole && ["super_admin", "initiator_admin", "approver_admin"].includes(userRole)
+
+  const fetchLoans = async () => {
+    try {
+      setLoading(true)
+      const raw = await apiGet<any>("/api/loans")
+      const normalized = Array.isArray(raw) ? raw : (raw?.data || [])
+      setLoans(normalized)
+    } catch (e: any) {
+      const msg = e?.message || "Failed to load loans"
+      setError(msg)
+      toast({ title: "Error", description: msg })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let mounted = true
-      ; (async () => {
-        try {
-          setLoading(true)
-          const data = await apiGet<any>("/api/loans")
-          const normalized = Array.isArray(data) ? data : data?.items || data?.data || data?.loans || []
-          if (mounted) setLoans(normalized)
-        } catch (e: any) {
-          const msg = e?.message || "Failed to load loans"
-          if (mounted) setError(msg)
-          toast({ title: "Error", description: msg })
-        } finally {
-          if (mounted) setLoading(false)
+    fetchLoans()
+  }, [])
+
+  const sortedLoans = useMemo(() => {
+    let sortableItems = [...loans]
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        let aValue: any = a[sortConfig.key as keyof LoanItem]
+        let bValue: any = b[sortConfig.key as keyof LoanItem]
+
+        if (sortConfig.key === "clientName") {
+          aValue = typeof a.client === "string" ? a.client : a.client?.name || a.clientName || ""
+          bValue = typeof b.client === "string" ? b.client : b.client?.name || b.clientName || ""
         }
-      })()
-    return () => {
-      mounted = false
+
+        if (aValue < bValue) {
+          return sortConfig.direction === "asc" ? -1 : 1
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === "asc" ? 1 : -1
+        }
+        return 0
+      })
     }
-  }, [toast])
+    return sortableItems
+  }, [loans, sortConfig])
+
+  const requestSort = (key: keyof LoanItem | "clientName") => {
+    let direction: "asc" | "desc" = "asc"
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc"
+    }
+    setSortConfig({ key, direction })
+  }
+  const toggleSelectAll = () => {
+    if (selectedIds.size === loans.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(loans.map(l => l._id)))
+    }
+  }
+
+  const toggleSelectOne = (id: string) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelectedIds(next)
+  }
+
+  const handleBulkMarkFeePaid = async () => {
+    if (!window.confirm(`Mark registration fee as paid for ${selectedIds.size} selected loans?`)) return
+    try {
+      setBulkSubmitting(true)
+      await apiPostJson("/api/loans/mark-application-fee-paid-bulk", {
+        loanIds: Array.from(selectedIds)
+      })
+      toast({ title: "Bulk update successful" })
+      setSelectedIds(new Set())
+      fetchLoans()
+    } catch (e: any) {
+      toast({ title: "Bulk update failed", description: e?.message || "Unknown error", variant: "destructive" })
+    } finally {
+      setBulkSubmitting(false)
+    }
+  }
+
+  const renderSortIcon = (key: keyof LoanItem | "clientName") => {
+    if (!sortConfig || sortConfig.key !== key) return <ArrowUpDown className="w-3 h-3 ml-1" />
+    return sortConfig.direction === "asc" ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />
+  }
 
   return (
     <DashboardLayout>
@@ -87,7 +157,7 @@ export default function LoansPage() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center">
           <Button variant="outline" className="gap-2 bg-transparent text-xs sm:text-sm">
             <Filter className="w-4 h-4" />
             Filter
@@ -96,6 +166,27 @@ export default function LoansPage() {
             <Download className="w-4 h-4" />
             Export
           </Button>
+
+          {selectedIds.size > 0 && canBulkAction && (
+            <div className="flex items-center gap-2 animate-in slide-in-from-left-2 fade-in duration-200">
+              <span className="text-xs font-semibold text-muted-foreground ml-2">{selectedIds.size} selected</span>
+              <Button
+                onClick={handleBulkMarkFeePaid}
+                disabled={bulkSubmitting}
+                className="gap-2 bg-orange-500 text-white neumorphic border-0 text-xs sm:text-sm h-9"
+              >
+                {bulkSubmitting ? "Processing..." : "Mark Fees Paid"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedIds(new Set())}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </Button>
+            </div>
+          )}
         </div>
 
         <Card className="neumorphic p-3 sm:p-6 bg-card border-0">
@@ -110,25 +201,52 @@ export default function LoansPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground">Loan ID</th>
-                      <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground">Client</th>
+                      <th className="py-3 px-4 text-left w-10">
+                        <button
+                          onClick={toggleSelectAll}
+                          className="text-primary hover:scale-110 transition-transform"
+                          title={selectedIds.size === loans.length ? "Deselect All" : "Select All"}
+                        >
+                          {selectedIds.size === loans.length ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                        </button>
+                      </th>
+                      <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("_id")}>
+                        <div className="flex items-center">Loan ID {renderSortIcon("_id")}</div>
+                      </th>
+                      <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("clientName")}>
+                        <div className="flex items-center">Client {renderSortIcon("clientName")}</div>
+                      </th>
                       <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground">Type</th>
-                      <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground">Amount</th>
+                      <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("amount")}>
+                        <div className="flex items-center">Amount {renderSortIcon("amount")}</div>
+                      </th>
                       <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground">Status</th>
-                      <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground">Date</th>
+                      <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("createdAt")}>
+                        <div className="flex items-center">Date {renderSortIcon("createdAt")}</div>
+                      </th>
                       <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {loans.map((loan) => {
+                    {sortedLoans.map((loan) => {
                       const clientName = typeof loan.client === "string" ? loan.client : loan.client?.name || loan.clientName || "—"
                       const created = loan.createdAt ? new Date(loan.createdAt).toISOString().slice(0, 10) : "—"
+                      const amount = (loan as any).amountKES || loan.amount || 0
+                      const isSelected = selectedIds.has(loan._id)
                       return (
-                        <tr key={loan._id} className="border-b border-border hover:bg-muted/50 transition-colors">
+                        <tr key={loan._id} className={`border-b border-border hover:bg-muted/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
+                          <td className="py-4 px-4 text-left">
+                            <button
+                              onClick={() => toggleSelectOne(loan._id)}
+                              className={`transition-transform hover:scale-110 ${isSelected ? "text-primary" : "text-muted-foreground/50"}`}
+                            >
+                              {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                            </button>
+                          </td>
                           <td className="py-4 px-4 font-mono text-xs sm:text-sm">{loan._id}</td>
                           <td className="py-4 px-4 font-semibold text-xs sm:text-sm">{clientName}</td>
                           <td className="py-4 px-4 text-muted-foreground capitalize text-xs sm:text-sm">{loan.type}</td>
-                          <td className="py-4 px-4 font-semibold text-secondary text-xs sm:text-sm">KES {Number(loan.amount || 0).toLocaleString()}</td>
+                          <td className="py-4 px-4 font-semibold text-secondary text-xs sm:text-sm">KES {Number(amount).toLocaleString()}</td>
                           <td className="py-4 px-4">
                             <Badge variant="outline" className={statusColors[loan.status as keyof typeof statusColors] || ""}>
                               {loan.status}
@@ -149,15 +267,26 @@ export default function LoansPage() {
 
               {/* Mobile Card View */}
               <div className="md:hidden space-y-3">
-                {loans.map((loan) => {
+                {sortedLoans.map((loan) => {
                   const clientName = typeof loan.client === "string" ? loan.client : loan.client?.name || loan.clientName || "—"
                   const created = loan.createdAt ? new Date(loan.createdAt).toISOString().slice(0, 10) : "—"
+                  const amount = (loan as any).amountKES || loan.amount || 0
+                  const isSelected = selectedIds.has(loan._id)
                   return (
-                    <div key={loan._id} className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+                    <div
+                      key={loan._id}
+                      onClick={() => toggleSelectOne(loan._id)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer ${isSelected ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20" : "bg-muted/20 border-border"}`}
+                    >
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-mono text-muted-foreground truncate">{loan._id}</p>
-                          <p className="text-sm font-semibold text-foreground mt-1">{clientName}</p>
+                        <div className="flex gap-2">
+                          <span className={isSelected ? "text-primary" : "text-muted-foreground/30"}>
+                            {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-mono text-muted-foreground truncate">{loan._id}</p>
+                            <p className="text-sm font-semibold text-foreground mt-0.5">{clientName}</p>
+                          </div>
                         </div>
                         <Badge variant="outline" className={statusColors[loan.status as keyof typeof statusColors] || ""}>
                           {loan.status}
@@ -170,7 +299,7 @@ export default function LoansPage() {
                         </div>
                         <div>
                           <p className="text-muted-foreground">Amount</p>
-                          <p className="font-semibold text-secondary">KES {Number(loan.amount || 0).toLocaleString()}</p>
+                          <p className="font-semibold text-secondary">KES {Number(amount).toLocaleString()}</p>
                         </div>
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t border-border">

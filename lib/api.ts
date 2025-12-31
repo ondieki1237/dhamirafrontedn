@@ -1,18 +1,23 @@
 // Determine API URL based on environment
 // Use LOCAL_API_URL for development, NEXT_PUBLIC_API_URL for production
-export const API_BASE_URL = 
-  process.env.NODE_ENV === "development" 
+export const API_BASE_URL =
+  process.env.NODE_ENV === "development"
     ? (process.env.LOCAL_API_URL || "http://localhost:5011")
     : (process.env.NEXT_PUBLIC_API_URL || "https://dhamira.codewithseth.co.ke")
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null
   try {
-    // Prefer cookie (set by our login route); fallback to localStorage
     const match = document.cookie.match(/(?:^|; )token=([^;]+)/)
-    if (match) return decodeURIComponent(match[1])
-    return localStorage.getItem("token")
-  } catch {
+    const token = match ? decodeURIComponent(match[1]) : localStorage.getItem("token")
+
+    if (!token) {
+      console.warn("Dhamira API: No token found in cookies or localStorage.")
+    }
+
+    return token
+  } catch (err) {
+    console.error("Dhamira API: Error retrieving token", err)
     return null
   }
 }

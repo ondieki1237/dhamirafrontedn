@@ -37,8 +37,8 @@ export default function GroupsPage() {
       ; (async () => {
         try {
           setLoading(true)
-          const data = await apiGet<any>("/api/groups")
-          const normalized = Array.isArray(data) ? data : data?.items || data?.data || data?.groups || []
+          const raw = await apiGet<any>("/api/groups")
+          const normalized = Array.isArray(raw) ? raw : (raw?.data || [])
           if (mounted) setGroups(normalized)
         } catch (e: any) {
           const msg = e?.message || "Failed to load groups"

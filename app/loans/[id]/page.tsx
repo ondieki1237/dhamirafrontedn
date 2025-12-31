@@ -16,29 +16,56 @@ type Loan = {
   type: string
   amount: number
   term: number
-  status: "initiated" | "approved" | "disbursed" | "repaid" | "defaulted"
+  status: "initiated" | "approved" | "disbursed" | "repaid" | "defaulted" | string
   purpose?: string
+  applicationFeePaid?: boolean
   createdAt: string
 }
 
 type Guarantor = {
   _id: string
-  clientId: { name: string; nationalId: string } | string
+  name?: string
+  clientNationalId?: string
+  phone?: string
+  isMember?: boolean
+  clientId: { _id: string; name: string; nationalId: string } | string | null
   relationship: string
   status: "pending" | "accepted" | "rejected"
-  idCopyUrl?: string
-  photoUrl?: string
 }
 
-type CreditAssessment = {
+type RepaymentScheduleItem = {
   _id: string
-  character: number
-  capacity: number
-  capital: number
-  collateral: number
-  conditions: number
-  totalScore: number
-  officerNotes?: string
+  dueDate: string
+  amount: number
+  principal: number
+  interest: number
+  balance: number
+  status: "pending" | "paid" | "partial" | "overdue"
+}
+
+type RepaymentRecord = {
+  _id: string
+  amount: number
+  date: string
+  method: string
+  reference?: string
+}
+
+type LoanTotals = {
+  totalDue: number
+  totalPaid: number
+  outstanding: number
+}
+
+type LoanDetailResponse = {
+  loan: Loan
+  guarantors: Guarantor[]
+  schedules: RepaymentScheduleItem[]
+  repayments: RepaymentRecord[]
+  totals: LoanTotals
+  progress: number
+  nextDue: RepaymentScheduleItem | null
+  actions: { key: string; label: string }[]
 }
 
 export default function LoanDetailPage() {
@@ -47,9 +74,7 @@ export default function LoanDetailPage() {
   const { toast } = useToast()
   const loanId = params.id as string
 
-  const [loan, setLoan] = useState<Loan | null>(null)
-  const [guarantors, setGuarantors] = useState<Guarantor[]>([])
-  const [assessment, setAssessment] = useState<CreditAssessment | null>(null)
+  const [data, setData] = useState<LoanDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
 
@@ -58,14 +83,46 @@ export default function LoanDetailPage() {
   const fetchLoanData = async () => {
     try {
       setLoading(true)
-      const [loanData, guarantorsData, assessmentData] = await Promise.all([
-        apiGet<Loan>(`/api/loans/${loanId}`),
-        apiGet<Guarantor[]>(`/api/guarantors?loanId=${loanId}`).catch(() => []),
-        apiGet<CreditAssessment>(`/api/credit-assessments/${loanId}`).catch(() => null),
-      ])
-      setLoan(loanData)
-      setGuarantors(guarantorsData)
-      setAssessment(assessmentData)
+      const raw = await apiGet<any>(`/api/loans/${loanId}`)
+      const res = (raw?.data || raw) as LoanDetailResponse
+
+      // 1. Aggressive Client Recovery
+      if (res && res.loan) {
+        const c = res.loan.client
+        const clientId = typeof c === "string" ? c : (res.loan as any).clientId
+        const curName = typeof c === "object" ? c?.name : null
+
+        if (clientId && !curName) {
+          try {
+            // Path A: Direct fetch
+            const clientData = await apiGet<any>(`/api/clients/${clientId}`)
+            const clientInfo = clientData?.data || clientData
+            if (clientInfo && clientInfo.name) {
+              res.loan.client = clientInfo
+            } else {
+              // Path B: Search global list as fallback
+              const allClients = await apiGet<any>("/api/clients?limit=1000")
+              const clientsArr = Array.isArray(allClients) ? allClients : (allClients?.data || [])
+              const found = clientsArr.find((cl: any) => cl._id === clientId)
+              if (found) res.loan.client = found
+            }
+          } catch (e) {
+            console.error("Aggressive client recovery failed", e)
+          }
+        }
+      }
+
+      // 2. Aggressive Guarantor Recovery (if list is empty or docs are incomplete)
+      if (!res.guarantors || res.guarantors.length === 0) {
+        try {
+          const gData = await apiGet<any>(`/api/guarantors?loanId=${loanId}`)
+          res.guarantors = Array.isArray(gData) ? gData : (gData?.data || [])
+        } catch (e) {
+          console.error("Guarantor recovery failed", e)
+        }
+      }
+
+      setData(res)
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load loan data" })
     } finally {
@@ -116,7 +173,7 @@ export default function LoanDetailPage() {
     )
   }
 
-  if (!loan) {
+  if (!data || !data.loan) {
     return (
       <DashboardLayout>
         <div className="max-w-6xl mx-auto">
@@ -126,27 +183,58 @@ export default function LoanDetailPage() {
     )
   }
 
-  const clientName =
-    typeof loan.client === "string"
-      ? loan.client
-      : ((loan as any)?.client?.name ?? (loan as any)?.clientName ?? "—")
-  const clientId =
-    typeof loan.client === "string" ? loan.client : ((loan as any)?.client?._id ?? "")
-  const acceptedGuarantors = guarantors.filter((g) => g.status === "accepted")
-  const canApprove = user?.role && ["super_admin", "approver_admin"].includes(user.role)
-  const canAssess = user?.role && ["super_admin", "loan_officer"].includes(user.role)
-  const canAddGuarantor = user?.role && ["super_admin", "loan_officer"].includes(user.role)
-  const loanStatus = ((loan as any)?.status ?? "initiated") as string
-  const canDisburse =
-    user?.role && ["super_admin", "approver_admin"].includes(user.role) &&
-    loanStatus === "approved" && assessment && acceptedGuarantors.length >= 1
+  const { loan, guarantors, schedules, repayments, totals, progress, nextDue } = data
+  let { actions } = data
 
+  const canMarkFee = user?.role && ["super_admin", "approver_admin", "initiator_admin"].includes(user.role)
+
+  // Manually inject mark-application-fee-paid if missing but authorized and state is initiated AND NOT PAID
+  if (loan.status === "initiated" && canMarkFee && !loan.applicationFeePaid) {
+    const hasFeeAction = actions.some(a => a.key === "mark-application-fee-paid")
+    if (!hasFeeAction) {
+      actions = [...actions, { key: "mark-application-fee-paid", label: "Mark Registration Fee Paid" }]
+    }
+  }
+
+  const clientName = typeof loan.client === "string"
+    ? loan.client
+    : (loan.client?.name || (loan as any).clientName || "—")
+
+  const loanAmount = (loan as any).amountKES || loan.amount || (loan as any).principal_cents / 100 || (loan as any).loanAmount || 0
+  const loanType = loan.type || (loan as any).loanType || "—"
+  const loanStatus = loan.status
   const statusColors = {
     initiated: "bg-blue-100 text-blue-700 border-blue-200",
     approved: "bg-secondary/10 text-secondary border-secondary/20",
     disbursed: "bg-primary/10 text-primary border-primary/20",
     repaid: "bg-green-100 text-green-700 border-green-200",
     defaulted: "bg-destructive/10 text-destructive border-destructive/20",
+  }
+
+  const handleAction = async (actionKey: string) => {
+    if (!window.confirm(`Perform "${actionKey}" on this loan?`)) return
+    try {
+      setActionLoading(true)
+      // Some actions might be POST, some PUT. We'll use PUT as default as per user request for individual mark-fee
+      if (actionKey === "mark-application-fee-paid") {
+        await apiPutJson(`/api/loans/${loanId}/mark-application-fee-paid`, {})
+      } else {
+        await apiPutJson(`/api/loans/${loanId}/${actionKey}`, {})
+      }
+      toast({ title: "Action successful" })
+      fetchLoanData()
+    } catch (e: any) {
+      // log specific backend error if available
+      const errorMsg = e?.message || e?.statusText || "Action failed"
+      toast({
+        title: "Action Failed",
+        description: errorMsg,
+        variant: "destructive"
+      })
+      console.error(`Action ${actionKey} failed:`, e)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   return (
@@ -173,255 +261,214 @@ export default function LoanDetailPage() {
           </div>
         </div>
 
-        {/* Loan Information */}
-        <Card className="neumorphic p-6 bg-card border-0">
-          <h2 className="text-xl font-bold mb-4">Loan Information</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Loan ID</p>
-              <p className="font-mono font-semibold">{loan._id}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Client</p>
-              <p className="font-semibold">{clientName}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Amount</p>
-              <p className="font-bold text-primary text-lg">KES {Number((loan as any)?.amount ?? 0).toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Type</p>
-              <p className="font-semibold capitalize">{(loan as any)?.type ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Duration</p>
-              <p className="font-semibold">{(loan as any)?.term != null ? `${(loan as any).term} months` : "—"}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Date Created</p>
-              <p className="font-semibold">{(loan as any)?.createdAt ? new Date((loan as any).createdAt).toLocaleDateString() : "—"}</p>
-            </div>
-          </div>
-          {loan.purpose && (
-            <div className="mt-4">
-              <p className="text-sm text-muted-foreground mb-1">Purpose</p>
-              <p className="text-foreground">{loan.purpose}</p>
-            </div>
-          )}
-        </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            {/* Loan Information */}
+            <Card className="neumorphic p-6 bg-card border-0">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Loan Information</h2>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Progress</p>
+                  <p className="text-lg font-bold text-primary">{progress}%</p>
+                </div>
+              </div>
 
-        {/* Workflow Steps */}
-        <Card className="neumorphic p-6 bg-card border-0">
-          <h2 className="text-xl font-bold mb-4">Loan Workflow</h2>
-          <div className="space-y-4">
-            {/* Step 1: Initiate */}
-            <div className="flex items-start gap-4 pb-4 border-b border-border">
-              <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white font-bold">
-                ✓
+              <div className="w-full bg-muted rounded-full h-2 mb-6">
+                <div
+                  className="bg-primary h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${progress}%` }}
+                />
               </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground">Loan Initiated</h3>
-                <p className="text-sm text-muted-foreground">Loan application created</p>
-              </div>
-              <Badge variant="outline" className="bg-green-100 text-green-700">
-                Completed
-              </Badge>
-            </div>
 
-            {/* Step 2: Add Guarantors */}
-            <div className="flex items-start gap-4 pb-4 border-b border-border">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${acceptedGuarantors.length >= 1
-                  ? "bg-green-500 text-white"
-                  : "bg-blue-500 text-white"
-                  }`}
-              >
-                {acceptedGuarantors.length >= 1 ? "✓" : "2"}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                <div>
+                  <p className="text-sm text-muted-foreground">Loan ID</p>
+                  <p className="font-mono font-semibold text-xs truncate" title={loan._id}>{loan._id}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Client</p>
+                  <p className="font-semibold">{clientName}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Amount</p>
+                  <p className="font-bold text-primary text-lg">KES {Number(loanAmount).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Type</p>
+                  <p className="font-semibold capitalize">{loanType}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Duration</p>
+                  <p className="font-semibold">{loan.term != null ? `${loan.term} months` : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Date Created</p>
+                  <p className="font-semibold">{loan.createdAt ? new Date(loan.createdAt).toLocaleDateString() : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Application Fee</p>
+                  <Badge variant="outline" className={loan.applicationFeePaid ? "bg-green-100 text-green-700 border-green-200" : "bg-orange-100 text-orange-700 border-orange-200"}>
+                    {loan.applicationFeePaid ? "Paid" : "Unpaid"}
+                  </Badge>
+                </div>
               </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground">Add Guarantors</h3>
-                <p className="text-sm text-muted-foreground">
-                  {acceptedGuarantors.length} accepted / {guarantors.length} total
-                </p>
-              </div>
-              {loanStatus === "initiated" && canAddGuarantor && (
-                <Button
-                  size="sm"
-                  onClick={() => router.push(`/loans/${loanId}/add-guarantor`)}
-                  className="gap-2"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Add Guarantor
-                </Button>
+              {loan.purpose && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <p className="text-sm text-muted-foreground mb-1">Purpose</p>
+                  <p className="text-foreground">{loan.purpose}</p>
+                </div>
               )}
-            </div>
+            </Card>
 
-            {/* Step 3: Credit Assessment */}
-            <div className="flex items-start gap-4 pb-4 border-b border-border">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${assessment ? "bg-green-500 text-white" : "bg-gray-300 text-gray-600"
-                  }`}
-              >
-                {assessment ? "✓" : "3"}
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground">Credit Assessment</h3>
-                <p className="text-sm text-muted-foreground">
-                  {assessment ? `Score: ${assessment.totalScore}/25` : "Not completed"}
-                </p>
-              </div>
-              {(loanStatus === "initiated" || assessment) && canAssess && (
-                <Button
-                  size="sm"
-                  onClick={() => router.push(`/loans/${loanId}/assess`)}
-                  className="gap-2"
-                  disabled={assessment !== null}
-                >
-                  <ClipboardCheck className="w-4 h-4" />
-                  {assessment ? "View Assessment" : "Create Assessment"}
-                </Button>
-              )}
-            </div>
-
-            {/* Step 4: Approve */}
-            <div className="flex items-start gap-4 pb-4 border-b border-border">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${loanStatus === "approved" || loanStatus === "disbursed"
-                  ? "bg-green-500 text-white"
-                  : "bg-gray-300 text-gray-600"
-                  }`}
-              >
-                {loanStatus === "approved" || loanStatus === "disbursed" ? "✓" : "4"}
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground">Approve Loan</h3>
-                <p className="text-sm text-muted-foreground">
-                  {loanStatus === "approved" || loanStatus === "disbursed"
-                    ? "Loan approved"
-                    : "Waiting for approval"}
-                </p>
-              </div>
-              {loanStatus === "initiated" && canApprove && assessment && acceptedGuarantors.length >= 1 ? (
-                <Button
-                  size="sm"
-                  onClick={handleApproveLoan}
-                  className="gap-2 bg-secondary text-white"
-                  disabled={actionLoading}
-                >
-                  <Check className="w-4 h-4" />
-                  Approve
-                </Button>
-              ) : loanStatus === "initiated" && (!assessment || acceptedGuarantors.length < 1) ? (
-                <Badge variant="outline" className="bg-yellow-100 text-yellow-700">Prerequisites Required</Badge>
-              ) : null}
-            </div>
-
-            {/* Step 5: Disburse */}
-            <div className="flex items-start gap-4">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${loanStatus === "disbursed" ? "bg-green-500 text-white" : "bg-gray-300 text-gray-600"
-                  }`}
-              >
-                {loanStatus === "disbursed" ? "✓" : "5"}
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground">Disburse Loan</h3>
-                <p className="text-sm text-muted-foreground">
-                  {loanStatus === "disbursed" ? "Funds disbursed" : "Waiting for disbursement"}
-                </p>
-                {loanStatus === "approved" && !canDisburse && user?.role && (
-                  <p className="text-xs text-destructive mt-1">
-                    Only super_admin or approver_admin can disburse
-                  </p>
-                )}
-              </div>
-              {canDisburse && (
-                <Button
-                  size="sm"
-                  onClick={handleDisburseLoan}
-                  className="gap-2 bg-primary text-white"
-                  disabled={actionLoading}
-                >
-                  <DollarSign className="w-4 h-4" />
-                  Disburse
-                </Button>
-              )}
-            </div>
-          </div>
-        </Card>
-
-        {/* Guarantors List */}
-        {guarantors.length > 0 && (
-          <Card className="neumorphic p-6 bg-card border-0">
-            <h2 className="text-xl font-bold mb-4">Guarantors ({guarantors.length})</h2>
-            <div className="space-y-3">
-              {guarantors.map((g) => {
-                const gName = typeof g.clientId === "string" ? g.clientId : ((g as any)?.clientId?.name ?? "—")
-                const statusColor =
-                  g.status === "accepted"
-                    ? "bg-green-100 text-green-700"
-                    : g.status === "rejected"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-yellow-100 text-yellow-700"
-                return (
-                  <div key={g._id} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
-                    <div>
-                      <p className="font-semibold">{gName}</p>
-                      <p className="text-sm text-muted-foreground">Relationship: {g.relationship}</p>
-                    </div>
-                    <Badge variant="outline" className={statusColor}>
-                      {g.status}
-                    </Badge>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
-        )}
-
-        {/* Credit Assessment Details */}
-        {assessment && (
-          <Card className="neumorphic p-6 bg-card border-0">
-            <h2 className="text-xl font-bold mb-4">Credit Assessment (5 C's)</h2>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">Character</p>
-                <p className="text-2xl font-bold text-primary">{assessment.character}/5</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">Capacity</p>
-                <p className="text-2xl font-bold text-primary">{assessment.capacity}/5</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">Capital</p>
-                <p className="text-2xl font-bold text-primary">{assessment.capital}/5</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">Collateral</p>
-                <p className="text-2xl font-bold text-primary">{assessment.collateral}/5</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">Conditions</p>
-                <p className="text-2xl font-bold text-primary">{assessment.conditions}/5</p>
-              </div>
-            </div>
-            <div className="pt-4 border-t border-border">
-              <p className="text-sm text-muted-foreground mb-1">Total Score</p>
-              <p className="text-3xl font-bold text-secondary">
-                {assessment.totalScore}/25
-                {assessment.totalScore >= 18 && (
-                  <span className="text-sm ml-2 text-green-600">(Meets minimum requirement)</span>
-                )}
-              </p>
-            </div>
-            {assessment.officerNotes && (
-              <div className="mt-4 pt-4 border-t border-border">
-                <p className="text-sm text-muted-foreground mb-1">Officer Notes</p>
-                <p className="text-foreground">{assessment.officerNotes}</p>
-              </div>
+            {/* Repayment Schedule */}
+            {schedules && schedules.length > 0 && (
+              <Card className="neumorphic p-6 bg-card border-0">
+                <h2 className="text-xl font-bold mb-4">Repayment Schedule</h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-muted-foreground">
+                        <th className="text-left py-2">Due Date</th>
+                        <th className="text-right py-2">Amount</th>
+                        <th className="text-right py-2">Principal</th>
+                        <th className="text-right py-2">Interest</th>
+                        <th className="text-center py-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {schedules.map((s) => (
+                        <tr key={s._id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                          <td className="py-3">{new Date(s.dueDate).toLocaleDateString()}</td>
+                          <td className="py-3 text-right font-semibold">KES {Number(s.amount).toLocaleString()}</td>
+                          <td className="py-3 text-right">KES {Number(s.principal).toLocaleString()}</td>
+                          <td className="py-3 text-right">KES {Number(s.interest).toLocaleString()}</td>
+                          <td className="py-3 text-center">
+                            <Badge variant="outline" className={
+                              s.status === "paid" ? "bg-green-100 text-green-700 border-green-200" :
+                                s.status === "partial" ? "bg-yellow-100 text-yellow-700 border-yellow-200" :
+                                  s.status === "overdue" ? "bg-red-100 text-red-700 border-red-200" :
+                                    "bg-blue-100 text-blue-700 border-blue-200"
+                            }>
+                              {s.status}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
             )}
-          </Card>
-        )}
+
+            {/* Repayments History */}
+            {repayments && repayments.length > 0 && (
+              <Card className="neumorphic p-6 bg-card border-0">
+                <h2 className="text-xl font-bold mb-4">Repayment History</h2>
+                <div className="space-y-3">
+                  {repayments.map((r) => (
+                    <div key={r._id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border border-border/50">
+                      <div>
+                        <p className="font-bold text-secondary">KES {Number(r.amount).toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(r.date).toLocaleDateString()} • {r.method}</p>
+                      </div>
+                      {r.reference && <Badge variant="outline" className="text-[10px]">{r.reference}</Badge>}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            {/* Totals Summary */}
+            <Card className="neumorphic p-6 bg-card border-0 space-y-4">
+              <h2 className="text-lg font-bold">Totals Summary</h2>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-3 bg-muted/20 rounded-lg">
+                  <span className="text-sm text-muted-foreground">Total Due</span>
+                  <span className="font-bold">KES {Number(totals?.totalDue || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                  <span className="text-sm text-green-700">Total Paid</span>
+                  <span className="font-bold text-green-700">KES {Number(totals?.totalPaid || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-primary/10 rounded-lg">
+                  <span className="text-sm text-primary font-semibold">Outstanding</span>
+                  <span className="font-bold text-primary">KES {Number(totals?.outstanding || 0).toLocaleString()}</span>
+                </div>
+              </div>
+
+              {nextDue && (
+                <div className="pt-4 border-t border-border">
+                  <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider font-bold">Next Repayment</p>
+                  <p className="text-lg font-bold text-foreground">KES {Number(nextDue.amount).toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">{new Date(nextDue.dueDate).toLocaleDateString()}</p>
+                </div>
+              )}
+            </Card>
+
+            {/* Actions Card */}
+            {actions && actions.length > 0 && (
+              <Card className="neumorphic p-6 bg-card border-0 space-y-4">
+                <h2 className="text-lg font-bold">Actions</h2>
+                <div className="grid grid-cols-1 gap-2">
+                  {actions.map((act) => (
+                    <Button
+                      key={act.key}
+                      onClick={() => handleAction(act.key)}
+                      disabled={actionLoading}
+                      className={`w-full gap-2 border-0 neumorphic neumorphic-hover ${act.key === 'approve' ? 'bg-secondary text-white' :
+                        act.key === 'disburse' ? 'bg-primary text-white' :
+                          act.key === 'mark-application-fee-paid' ? 'bg-orange-500 text-white' :
+                            'bg-muted text-foreground'
+                        }`}
+                    >
+                      {act.key === 'approve' && <Check className="w-4 h-4" />}
+                      {act.key === 'disburse' && <DollarSign className="w-4 h-4" />}
+                      {act.key === 'mark-application-fee-paid' && <ClipboardCheck className="w-4 h-4" />}
+                      {act.label}
+                    </Button>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* Guarantors List */}
+            {guarantors.length > 0 && (
+              <Card className="neumorphic p-6 bg-card border-0">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  Guarantors
+                  {guarantors.length < 3 && (
+                    <Badge variant="outline" className="text-[10px] bg-red-50 text-red-600 border-red-200">Needs 3</Badge>
+                  )}
+                </h2>
+                <div className="space-y-3">
+                  {guarantors.length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">No guarantors found.</p>
+                  )}
+                  {guarantors.map((g, idx) => {
+                    const gName = g.name ||
+                      (typeof g.clientId === "object" ? (g.clientId as any)?.name : null) ||
+                      (g as any).guarantorName || "—"
+                    const statusColor =
+                      g.status === "accepted" ? "bg-green-100 text-green-700" :
+                        g.status === "rejected" ? "bg-red-100 text-red-700" :
+                          "bg-yellow-100 text-yellow-700"
+                    return (
+                      <div key={idx} className="p-3 bg-muted/20 rounded-lg border border-border/50 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-semibold text-sm">{gName}</p>
+                          <Badge variant="outline" className={`text-[10px] ${statusColor}`}>{g.status}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-1">{g.phone || g.relationship || "No details"}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </Card>
+            )}
+          </div>
+        </div>
       </div>
     </DashboardLayout>
   )

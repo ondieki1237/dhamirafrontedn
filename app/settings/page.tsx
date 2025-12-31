@@ -5,9 +5,9 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { getCurrentUser } from "@/lib/api"
-import { useToast } from "@/hooks/use-toast"
 import { User, Lock, Bell, Shield } from "lucide-react"
+import { apiPutJson, getCurrentUser } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 
 export default function SettingsPage() {
   const { toast } = useToast()
@@ -23,19 +23,32 @@ export default function SettingsPage() {
     setUser(currentUser)
   }, [])
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast({ title: "Error", description: "Passwords do not match" })
+      toast({ title: "Error", description: "Passwords do not match", variant: "destructive" })
       return
     }
     if (passwordForm.newPassword.length < 8) {
-      toast({ title: "Error", description: "Password must be at least 8 characters" })
+      toast({ title: "Error", description: "Password must be at least 8 characters", variant: "destructive" })
       return
     }
-    // TODO: Implement password change API call
-    toast({ title: "Success", description: "Password updated successfully" })
-    setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
+
+    try {
+      await apiPutJson("/api/auth/change-password", {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword
+      })
+      toast({ title: "Success", description: "Password updated successfully" })
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to update password",
+        variant: "destructive"
+      })
+    }
   }
 
   const roleColors = {

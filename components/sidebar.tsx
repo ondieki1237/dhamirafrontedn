@@ -13,6 +13,8 @@ import {
   Shield,
   BarChart3,
   FileCheck,
+  Bell,
+  Terminal,
 } from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
@@ -36,7 +38,9 @@ const menuItems = [
   { icon: TrendingUp, label: "Repayments", route: "/repayments" },
   { icon: Shield, label: "Guarantors", route: "/guarantors" },
   { icon: BarChart3, label: "Analytics", route: "/analytics" },
+  { icon: Bell, label: "Notifications", route: "/notifications" },
   { icon: FileCheck, label: "Audit Logs", route: "/audit-logs" },
+  { icon: Terminal, label: "System Logs", route: "/system-logs" },
   { icon: Settings, label: "Settings", route: "/settings" },
 ]
 

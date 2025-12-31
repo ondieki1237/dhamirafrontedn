@@ -80,9 +80,7 @@ function ClientsView() {
               ? `/api/clients?search=${encodeURIComponent(q)}&limit=1000`
               : `/api/clients?limit=1000`
             const data: any = await apiGet(path)
-            const list: ClientItem[] = Array.isArray(data)
-              ? data
-              : data?.items || data?.data || data?.clients || []
+            const list: ClientItem[] = Array.isArray(data) ? data : (data?.data || [])
             if (q) {
               const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase()
               const sq = normalize(q)
@@ -102,7 +100,7 @@ function ClientsView() {
             // fallback to fetching all clients then client-side filter
           }
           const allRaw = await apiGet<any>("/api/clients?limit=1000")
-          const all: ClientItem[] = Array.isArray(allRaw) ? allRaw : allRaw?.items || allRaw?.data || allRaw?.clients || []
+          const all: ClientItem[] = Array.isArray(allRaw) ? allRaw : (allRaw?.data || [])
           if (q) {
             const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase()
             const sq = normalize(q)
@@ -133,16 +131,51 @@ function ClientsView() {
   const fetchClientHistory = async (clientId: string) => {
     try {
       setHistoryLoading(true)
+
+      // Helper to extract the actual data from potential wrappers
+      const unwrap = (obj: any): any => (obj && obj.data ? unwrap(obj.data) : obj)
+
       try {
-        const data = await apiGet<ClientHistory>(`/api/clients/${clientId}/history`)
-        // Ensure savings history is included if present in response
+        const raw = await apiGet<any>(`/api/clients/${clientId}/history`)
+        const data = raw?.data || raw
+
+        // If the return is { client: { ... }, loans: [...] }
+        if (data && data.client) {
+          // ensure the inner client is also unwrapped
+          const normalizedClient = unwrap(data.client)
+          setClientHistory({
+            ...data,
+            client: normalizedClient,
+            loans: unwrap(data.loans) || [],
+            repayments: unwrap(data.repayments) || [],
+            savingsHistory: unwrap(data.savingsHistory || data.savings) || []
+          })
+          return
+        }
+
+        // If the return is flat client data
+        if (data && (data.name || data.nationalId)) {
+          setClientHistory({
+            client: data,
+            loans: unwrap(data.loans) || [],
+            repayments: unwrap(data.repayments) || [],
+            savingsHistory: unwrap(data.savingsHistory || data.savings) || []
+          })
+          return
+        }
+
+        // If it's a generic success wrapper
         setClientHistory(data)
         return
       } catch {
-        // fallback to client detail endpoint and synthesize minimal history
+        // fallback
       }
-      const detail = await apiGet<any>(`/api/clients/${clientId}`)
-      setClientHistory({ client: detail })
+
+      const rawDetail = await apiGet<any>(`/api/clients/${clientId}`)
+      const detail = unwrap(rawDetail)
+      // Some APIs might return { client: { ... } } even in detail endpoint
+      const finalClient = detail?.client ? unwrap(detail.client) : detail
+      setClientHistory({ client: finalClient })
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load client details" })
     } finally {
@@ -162,7 +195,7 @@ function ClientsView() {
       toast({ title: "Success", description: "Client approved successfully" })
       // Refresh the list
       const dataRaw = await apiGet<any>("/api/clients?limit=1000")
-      const data = Array.isArray(dataRaw) ? dataRaw : dataRaw?.items || dataRaw?.data || dataRaw?.clients || []
+      const data = Array.isArray(dataRaw) ? dataRaw : (dataRaw?.data || [])
       if (q) {
         const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase()
         const sq = normalize(q)
@@ -336,44 +369,44 @@ function ClientsView() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
                   <div className="space-y-1">
                     <p className="text-muted-foreground text-xs">Name</p>
-                    <p className="font-semibold break-words">{clientHistory.client.name}</p>
+                    <p className="font-semibold break-words">{clientHistory?.client?.name || "—"}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground text-xs">National ID</p>
-                    <p className="font-semibold break-words">{clientHistory.client.nationalId}</p>
+                    <p className="font-semibold break-words">{clientHistory?.client?.nationalId || "—"}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground text-xs">Phone</p>
-                    <p className="font-semibold break-words">{clientHistory.client.phone || "—"}</p>
+                    <p className="font-semibold break-words">{clientHistory?.client?.phone || "—"}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground text-xs">Residence</p>
-                    <p className="font-semibold capitalize">{clientHistory.client.residence || "—"}</p>
+                    <p className="font-semibold capitalize">{clientHistory?.client?.residence || "—"}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground text-xs">Business Type</p>
-                    <p className="font-semibold">{clientHistory.client.businessType || "—"}</p>
+                    <p className="font-semibold">{clientHistory?.client?.businessType || "—"}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground text-xs">Business Location</p>
-                    <p className="font-semibold">{clientHistory.client.businessLocation || "—"}</p>
+                    <p className="font-semibold">{clientHistory?.client?.businessLocation || "—"}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground text-xs">Group</p>
-                    <p className="font-semibold">{clientHistory.client.groupId?.name || "—"}</p>
+                    <p className="font-semibold">{clientHistory?.client?.groupId?.name || "—"}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground text-xs">Savings Balance</p>
-                    <p className="font-semibold text-primary">KES {((clientHistory.client.savings_balance_cents || 0) / 100).toLocaleString()}</p>
+                    <p className="font-semibold text-primary">KES {((clientHistory?.client?.savings_balance_cents || 0) / 100).toLocaleString()}</p>
                   </div>
                 </div>
-                {clientHistory.client.nextOfKin && (
+                {clientHistory?.client?.nextOfKin && (
                   <div className="mt-4 p-2.5 sm:p-3 rounded-lg bg-card border border-border">
                     <p className="text-xs font-semibold mb-3 text-secondary">NEXT OF KIN</p>
                     <div className="text-xs sm:text-sm space-y-2">
-                      <div><span className="text-muted-foreground">Name:</span> <span className="font-semibold block">{clientHistory.client.nextOfKin.name || "—"}</span></div>
-                      <div><span className="text-muted-foreground">Phone:</span> <span className="font-semibold block break-words">{clientHistory.client.nextOfKin.phone || "—"}</span></div>
-                      <div><span className="text-muted-foreground">Relationship:</span> <span className="font-semibold block">{clientHistory.client.nextOfKin.relationship || "—"}</span></div>
+                      <div><span className="text-muted-foreground">Name:</span> <span className="font-semibold block">{clientHistory?.client?.nextOfKin?.name || "—"}</span></div>
+                      <div><span className="text-muted-foreground">Phone:</span> <span className="font-semibold block break-words">{clientHistory?.client?.nextOfKin?.phone || "—"}</span></div>
+                      <div><span className="text-muted-foreground">Relationship:</span> <span className="font-semibold block">{clientHistory?.client?.nextOfKin?.relationship || "—"}</span></div>
                     </div>
                   </div>
                 )}
@@ -497,6 +530,7 @@ function ClientsView() {
         onOpenChange={setIsSavingsDialogOpen}
         clientId={clientHistory?.client?._id || ""}
         clientName={clientHistory?.client?.name || ""}
+        currentBalanceCents={clientHistory?.client?.savings_balance_cents || 0}
         onSuccess={() => {
           if (selectedClientId) fetchClientHistory(selectedClientId)
         }}
