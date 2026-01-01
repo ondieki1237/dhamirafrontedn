@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Plus, Trash2, UserPlus, UserCheck } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, Suspense } from "react"
 import { apiGet, apiPostJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { useSearchParams } from "next/navigation"
@@ -18,7 +18,7 @@ type GuarantorFormItem = {
   relationship: string
 }
 
-export default function InitiateLoanPage() {
+function InitiateLoanPageContent() {
   const router = useRouter()
   const { toast } = useToast()
   const search = useSearchParams()
@@ -533,5 +533,13 @@ export default function InitiateLoanPage() {
         </div>
       )}
     </DashboardLayout>
+  )
+}
+
+export default function InitiateLoanPage() {
+  return (
+    <Suspense fallback={<div className="p-8">Loading...</div>}>
+      <InitiateLoanPageContent />
+    </Suspense>
   )
 }

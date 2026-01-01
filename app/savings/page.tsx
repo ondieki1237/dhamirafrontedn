@@ -5,14 +5,14 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Plus, DollarSign, History, MinusCircle, PlusCircle, Search, Users, Loader2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { apiGet, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import { SavingsAdjustmentDialog } from "@/components/savings-adjustment-dialog"
 import { Input } from "@/components/ui/input"
 
-export default function SavingsPage() {
+function SavingsPageContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const { toast } = useToast()
@@ -234,4 +234,12 @@ export default function SavingsPage() {
             )}
         </DashboardLayout>
     )
+}
+
+export default function SavingsPage() {
+  return (
+    <Suspense fallback={<div className="p-8">Loading...</div>}>
+      <SavingsPageContent />
+    </Suspense>
+  )
 }
