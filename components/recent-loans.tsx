@@ -64,13 +64,13 @@ export function RecentLoans() {
   }, [])
 
   return (
-    <Card className="neumorphic p-6 bg-card border-0">
-      <div className="flex items-center justify-between mb-6">
+    <Card className="neumorphic p-4 md:p-6 bg-card border-0">
+      <div className="flex items-center justify-between mb-4 md:mb-6">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Recent Loans</h2>
-          <p className="text-sm text-muted-foreground mt-1">Latest loan applications and updates</p>
+          <h2 className="text-lg md:text-xl font-bold text-foreground">Recent Loans</h2>
+          <p className="text-xs md:text-sm text-muted-foreground mt-1">Latest loan applications and updates</p>
         </div>
-        <button onClick={() => router.push("/loans")} className="text-sm text-primary font-medium hover:underline">
+        <button onClick={() => router.push("/loans")} className="text-xs md:text-sm text-primary font-medium hover:underline touch-target">
           View All
         </button>
       </div>
@@ -83,29 +83,30 @@ export function RecentLoans() {
           loans.map((loan, index) => (
             <div
               key={loan.id || index}
-              className="p-4 rounded-lg neumorphic-inset bg-background hover:shadow-md transition-all duration-200 group"
+              className="p-3 md:p-4 rounded-lg neumorphic-inset bg-background hover:shadow-md transition-all duration-200 group"
               style={{ animationDelay: `${index * 50}ms` }}
             >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold text-foreground">{loan.client}</h3>
-                    <Badge variant="outline" className={recentStatusColors[loan.status as keyof typeof recentStatusColors] || ""}>
+              {/* Mobile-optimized layout: stack vertically */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <h3 className="font-semibold text-foreground text-sm md:text-base truncate">{loan.client}</h3>
+                    <Badge variant="outline" className={`text-xs ${recentStatusColors[loan.status as keyof typeof recentStatusColors] || ""}`}>
                       {loan.status}
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span className="font-mono">{loan.id}</span>
-                    <span>•</span>
-                    <span>{loan.type}</span>
-                    <span>•</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs md:text-sm text-muted-foreground">
+                    <span className="font-mono truncate">{loan.id}</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span className="truncate">{loan.type}</span>
+                    <span className="hidden sm:inline">•</span>
                     <span>{loan.date}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <p className="text-lg font-bold text-secondary">{loan.amount ?? (loan.amountCents ? `KES ${Number(loan.amountCents / 100).toLocaleString()}` : "—")}</p>
-                  <button className="w-8 h-8 rounded-lg neumorphic-hover flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
+                  <p className="text-base md:text-lg font-bold text-secondary whitespace-nowrap">{loan.amount ?? (loan.amountCents ? `KES ${Number(loan.amountCents / 100).toLocaleString()}` : "—")}</p>
+                  <button className="w-8 h-8 rounded-lg neumorphic-hover flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-target">
                     <MoreVertical className="w-4 h-4 text-muted-foreground" />
                   </button>
                 </div>

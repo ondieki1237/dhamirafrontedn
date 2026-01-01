@@ -64,26 +64,26 @@ export function QuickActions() {
   }, [])
 
   return (
-    <Card className="neumorphic p-6 bg-card border-0">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-foreground">Quick Actions</h2>
-        <p className="text-sm text-muted-foreground mt-1">Common tasks at your fingertips</p>
+    <Card className="neumorphic p-4 md:p-6 bg-card border-0">
+      <div className="mb-4 md:mb-6">
+        <h2 className="text-lg md:text-xl font-bold text-foreground">Quick Actions</h2>
+        <p className="text-xs md:text-sm text-muted-foreground mt-1">Common tasks at your fingertips</p>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2 md:space-y-3">
         {actions
           .filter((a) => !a.roles || (role ? a.roles.includes(role) : false))
           .map((action, index) => (
             <Button
               key={action.label}
               onClick={() => router.push(action.route)}
-              className={`w-full justify-start gap-3 h-14 neumorphic neumorphic-hover neumorphic-active ${action.color} text-white border-0`}
+              className={`w-full justify-start gap-3 h-12 md:h-14 neumorphic neumorphic-hover neumorphic-active ${action.color} text-white border-0 touch-target`}
               style={{ animationDelay: `${index * 100}ms` }}
             >
-              <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
-                <action.icon className="w-5 h-5" />
+              <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                <action.icon className="w-4 h-4 md:w-5 md:h-5" />
               </div>
-              <span className="font-semibold">{action.label}</span>
+              <span className="font-semibold text-sm md:text-base">{action.label}</span>
             </Button>
           ))}
       </div>

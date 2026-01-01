@@ -225,16 +225,16 @@ function ClientsView() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">All Clients</h1>
-          <p className="text-muted-foreground mt-1">Manage your client database</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">All Clients</h1>
+          <p className="text-sm md:text-base text-muted-foreground mt-1">Manage your client database</p>
         </div>
         {canOnboard && (
           <Button
             onClick={() => router.push("/clients/new")}
-            className="gap-2 bg-secondary text-white neumorphic neumorphic-hover border-0"
+            className="gap-2 bg-secondary text-white neumorphic neumorphic-hover border-0 w-full sm:w-auto touch-target"
           >
             <Plus className="w-4 h-4" />
             New Client
@@ -242,25 +242,27 @@ function ClientsView() {
         )}
       </div>
 
-      <div className="flex gap-3">
-        <Button variant="outline" className="gap-2 bg-transparent">
+      <div className="flex gap-2 md:gap-3">
+        <Button variant="outline" className="gap-2 bg-transparent text-xs md:text-sm touch-target">
           <Filter className="w-4 h-4" />
           Filter
         </Button>
-        <Button variant="outline" className="gap-2 bg-transparent">
+        <Button variant="outline" className="gap-2 bg-transparent text-xs md:text-sm touch-target">
           <Download className="w-4 h-4" />
           Export
         </Button>
       </div>
 
-      <Card className="neumorphic p-6 bg-card border-0">
-        <div className="overflow-x-auto">
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Loading clients…</p>
-          ) : error ? (
-            <p className="text-sm text-destructive">{error}</p>
-          ) : (
-            <table className="w-full">
+      <Card className="neumorphic p-3 md:p-6 bg-card border-0">
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading clients…</p>
+        ) : error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : (
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">Client ID</th>
@@ -322,8 +324,67 @@ function ClientsView() {
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3">
+            {clients.slice(0, visibleCount).map((client) => (
+              <div
+                key={client._id}
+                className="p-3 rounded-xl border bg-muted/20 border-border hover:border-primary/30 transition-all"
+              >
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-mono text-muted-foreground truncate">{client._id.substring(0, 8)}...</p>
+                    <p className="text-sm font-semibold text-foreground mt-0.5">{client.name}</p>
+                  </div>
+                  <Badge variant="outline" className={`text-xs ${statusColors[client.status || "active" as keyof typeof statusColors]}`}>
+                    {(client.status || "active").toUpperCase()}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                  <div>
+                    <p className="text-muted-foreground">National ID</p>
+                    <p className="font-semibold">{client.nationalId}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Phone</p>
+                    <p className="font-semibold">{client.phone || "—"}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-muted-foreground">Group</p>
+                    {client.groupId ? (
+                      <button
+                        onClick={() => {
+                          const id = typeof client.groupId === "string" ? client.groupId : (client.groupId as any)?._id
+                          if (id) router.push(`/groups/${id}`)
+                        }}
+                        className="text-primary underline hover:text-primary/80 text-left touch-target"
+                      >
+                        {typeof client.groupId === "string" ? client.groupId : client.groupId?.name || "View Group"}
+                      </button>
+                    ) : (
+                      <p className="font-semibold">—</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2 border-t border-border">
+                  <Button variant="ghost" size="sm" onClick={() => handleViewClient(client._id)} className="flex-1 touch-target">
+                    View
+                  </Button>
+                  {canApprove && client.status === "pending" && (
+                    <Button variant="default" size="sm" onClick={() => handleApproveClient(client._id)} className="flex-1 bg-green-600 hover:bg-green-700 touch-target">
+                      Approve
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+        )}
       </Card>
       {clients.length > visibleCount && (
         <div className="flex justify-center mt-4">

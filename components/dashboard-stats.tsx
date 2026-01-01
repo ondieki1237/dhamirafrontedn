@@ -83,25 +83,25 @@ export function DashboardStats() {
   ]
 
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       {stats.map((stat, index) => (
         <Card
           key={stat.title}
-          className="neumorphic neumorphic-hover p-6 bg-card border-0 relative overflow-hidden group"
+          className="neumorphic neumorphic-hover p-4 md:p-6 bg-card border-0 relative overflow-hidden group"
           style={{ animationDelay: `${index * 100}ms` }}
         >
           <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/5 to-transparent rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500"></div>
 
           <div className="relative">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-              <div className={`w-10 h-10 rounded-xl neumorphic-inset flex items-center justify-center ${stat.color} bg-background/50`}>
-                <stat.icon className="w-5 h-5" />
+            <div className="flex items-center justify-between mb-3 md:mb-4">
+              <p className="text-xs md:text-sm font-medium text-muted-foreground">{stat.title}</p>
+              <div className={`w-9 h-9 md:w-10 md:h-10 rounded-xl neumorphic-inset flex items-center justify-center ${stat.color} bg-background/50`}>
+                <stat.icon className="w-4 h-4 md:w-5 md:h-5" />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <h3 className="text-2xl font-bold text-foreground">{stat.value}</h3>
+            <div className="space-y-1 md:space-y-2">
+              <h3 className="text-xl md:text-2xl font-bold text-foreground break-words">{stat.value}</h3>
               <p className={`text-xs font-medium flex items-center gap-1 ${stat.trend === "up" ? "text-secondary" : "text-destructive"}`}>
                 <TrendingUp className={`w-3 h-3 ${stat.trend === "down" && "rotate-180"}`} />
                 {stat.change} from last month

@@ -15,16 +15,20 @@ import {
   Terminal,
   History,
   ClipboardList,
+  X,
 } from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
 import { useRouter, usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { getCurrentUser } from "@/lib/api"
+import { useIsMobile } from "@/hooks/use-media-query"
 
 interface SidebarProps {
   collapsed: boolean
   onToggle: () => void
+  mobileOpen?: boolean
+  onMobileClose?: () => void
 }
 
 const menuItems = [
@@ -45,31 +49,76 @@ const menuItems = [
   { icon: Settings, label: "Settings", route: "/settings" },
 ]
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, mobileOpen = false, onMobileClose }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState<{ username: string; role: string } | null>(null)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     const userData = getCurrentUser()
     setUser(userData)
   }, [])
 
+  useEffect(() => {
+    // Close mobile menu when route changes
+    if (isMobile && mobileOpen && onMobileClose) {
+      onMobileClose()
+    }
+  }, [pathname])
+
   const initials = user?.username
     ? user.username.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2)
     : "U"
 
+  const handleNavigation = (route: string) => {
+    router.push(route)
+    // Close mobile menu after navigation
+    if (isMobile && onMobileClose) {
+      onMobileClose()
+    }
+  }
+
   return (
-    <aside
-      className={cn(
-        "bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out relative flex flex-col",
-        collapsed ? "w-20" : "w-72",
+    <>
+      {/* Mobile Overlay */}
+      {isMobile && mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={onMobileClose}
+          aria-hidden="true"
+        />
       )}
-    >
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out relative flex flex-col",
+          // Desktop styles
+          "md:relative",
+          collapsed ? "md:w-20" : "md:w-72",
+          // Mobile styles - slide-in drawer from left
+          "fixed inset-y-0 left-0 z-50 w-72",
+          "md:translate-x-0",
+          isMobile && !mobileOpen && "-translate-x-full",
+          isMobile && mobileOpen && "translate-x-0",
+        )}
+      >
       {/* Logo */}
-      <div className="p-6 border-b border-sidebar-border flex items-center justify-center">
-        {!collapsed ? (
-          <div className="flex items-center gap-3">
+      <div className="p-6 border-b border-sidebar-border flex items-center justify-between">
+        {/* Close button for mobile */}
+        {isMobile && mobileOpen && (
+          <button
+            onClick={onMobileClose}
+            className="md:hidden p-2 hover:bg-sidebar-accent rounded-lg transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
+
+        {!collapsed || isMobile ? (
+          <div className="flex items-center gap-3 flex-1 justify-center">
             <Image
               src="/logo-imara.png"
               alt="Dhamira Imara Capital"
@@ -79,7 +128,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             />
           </div>
         ) : (
-          <div className="w-10 h-10 bg-sidebar-primary rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-sidebar-primary rounded-lg flex items-center justify-center mx-auto">
             <TrendingUp className="w-6 h-6 text-sidebar-primary-foreground" />
           </div>
         )}
@@ -92,15 +141,16 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           .map((item) => (
             <button
               key={item.label}
-              onClick={() => router.push(item.route)}
+              onClick={() => handleNavigation(item.route)}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
                 "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                "touch-target", // Mobile touch target
                 pathname === item.route && "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg",
               )}
             >
-              <item.icon className={cn("flex-shrink-0", collapsed ? "w-6 h-6" : "w-5 h-5")} />
-              {!collapsed && <span className="font-medium text-sm">{item.label}</span>}
+              <item.icon className={cn("flex-shrink-0", (collapsed && !isMobile) ? "w-6 h-6" : "w-5 h-5")} />
+              {(!collapsed || isMobile) && <span className="font-medium text-sm">{item.label}</span>}
             </button>
           ))}
       </nav>
@@ -109,14 +159,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <div className="p-4 border-t border-sidebar-border">
         <div
           className={cn(
-            "flex items-center gap-3 px-4 py-3 rounded-lg bg-sidebar-accent",
-            collapsed && "justify-center",
+            (collapsed && !isMobile) && "justify-center",
           )}
         >
-          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground font-semibold">
+          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground font-semibold flex-shrink-0">
             {initials}
           </div>
-          {!collapsed && (
+          {(!collapsed || isMobile) && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-sidebar-accent-foreground truncate">
                 {user?.username || "Loading..."}
@@ -129,17 +178,21 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </div>
       </div>
 
-      {/* Toggle Button */}
-      <button
-        onClick={onToggle}
-        className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-sidebar border-2 border-sidebar-border flex items-center justify-center hover:bg-sidebar-accent transition-colors"
-      >
-        {collapsed ? (
-          <ChevronRight className="w-4 h-4 text-sidebar-foreground" />
-        ) : (
-          <ChevronLeft className="w-4 h-4 text-sidebar-foreground" />
-        )}
-      </button>
+      {/* Toggle Button - Desktop Only */}
+      {!isMobile && (
+        <button
+          onClick={onToggle}
+          className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-sidebar border-2 border-sidebar-border flex items-center justify-center hover:bg-sidebar-accent transition-colors"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? (
+            <ChevronRight className="w-4 h-4 text-sidebar-foreground" />
+          ) : (
+            <ChevronLeft className="w-4 h-4 text-sidebar-foreground" />
+          )}
+        </button>
+      )}
     </aside>
+    </>
   )
 }
