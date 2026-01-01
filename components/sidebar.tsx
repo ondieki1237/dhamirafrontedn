@@ -10,11 +10,11 @@ import {
   ChevronLeft,
   ChevronRight,
   TrendingUp,
-  Shield,
   BarChart3,
   FileCheck,
-  Bell,
   Terminal,
+  History,
+  ClipboardList,
 } from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
@@ -37,9 +37,9 @@ const menuItems = [
   { icon: UserCircle, label: "Loan Officers", route: "/loan-officers", roles: ["super_admin"] },
   { icon: FileText, label: "Credit Assessments", route: "/credit-assessments" },
   { icon: TrendingUp, label: "Repayments", route: "/repayments" },
-  { icon: Shield, label: "Guarantors", route: "/guarantors" },
+  { icon: History, label: "Loan History", route: "/loan-history", roles: ["super_admin"] },
+  { icon: ClipboardList, label: "Track My Loans", route: "/track-my-loans", roles: ["loan_officer"] },
   { icon: BarChart3, label: "Analytics", route: "/analytics", roles: ["super_admin"] },
-  { icon: Bell, label: "Notifications", route: "/notifications" },
   { icon: FileCheck, label: "Audit Logs", route: "/audit-logs", roles: ["super_admin"] },
   { icon: Terminal, label: "System Logs", route: "/system-logs", roles: ["super_admin"] },
   { icon: Settings, label: "Settings", route: "/settings" },
