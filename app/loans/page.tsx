@@ -114,17 +114,25 @@ export default function LoansPage() {
   }
 
   const handleBulkMarkFeePaid = async () => {
-    if (!window.confirm(`Mark registration fee as paid for ${selectedIds.size} selected loans?`)) return
+    const count = selectedIds.size
+    // Only confirm if more than 5 are selected to reduce fatigue
+    if (count > 5 && !window.confirm(`Mark registration fee as paid for all ${count} selected loans?`)) return
+
     try {
       setBulkSubmitting(true)
       await apiPostJson("/api/loans/mark-application-fee-paid-bulk", {
         loanIds: Array.from(selectedIds)
       })
-      toast({ title: "Bulk update successful" })
+      toast({ title: "Bulk update successful", description: `Processed ${count} loans.` })
       setSelectedIds(new Set())
       fetchLoans()
     } catch (e: any) {
-      toast({ title: "Bulk update failed", description: e?.message || "Unknown error", variant: "destructive" })
+      const msg = e?.message || "Unknown error"
+      toast({
+        title: "Bulk update failed",
+        description: msg.includes("authorized") ? "Your session may have expired. Please log in again." : msg,
+        variant: "destructive"
+      })
     } finally {
       setBulkSubmitting(false)
     }

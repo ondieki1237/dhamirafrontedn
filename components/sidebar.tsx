@@ -33,14 +33,15 @@ const menuItems = [
   { icon: UserCircle, label: "Clients", route: "/clients" },
   { icon: Users, label: "Groups", route: "/groups" },
   { icon: DollarSign, label: "Savings", route: "/savings" },
-  { icon: FileCheck, label: "Disbursements", route: "/loans/disburse" },
+  { icon: FileCheck, label: "Disbursements", route: "/loans/disburse", roles: ["super_admin", "approver_admin"] },
+  { icon: UserCircle, label: "Loan Officers", route: "/loan-officers", roles: ["super_admin"] },
   { icon: FileText, label: "Credit Assessments", route: "/credit-assessments" },
   { icon: TrendingUp, label: "Repayments", route: "/repayments" },
   { icon: Shield, label: "Guarantors", route: "/guarantors" },
-  { icon: BarChart3, label: "Analytics", route: "/analytics" },
+  { icon: BarChart3, label: "Analytics", route: "/analytics", roles: ["super_admin"] },
   { icon: Bell, label: "Notifications", route: "/notifications" },
-  { icon: FileCheck, label: "Audit Logs", route: "/audit-logs" },
-  { icon: Terminal, label: "System Logs", route: "/system-logs" },
+  { icon: FileCheck, label: "Audit Logs", route: "/audit-logs", roles: ["super_admin"] },
+  { icon: Terminal, label: "System Logs", route: "/system-logs", roles: ["super_admin"] },
   { icon: Settings, label: "Settings", route: "/settings" },
 ]
 
@@ -86,20 +87,22 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {menuItems.map((item) => (
-          <button
-            key={item.label}
-            onClick={() => router.push(item.route)}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
-              "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-              pathname === item.route && "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg",
-            )}
-          >
-            <item.icon className={cn("flex-shrink-0", collapsed ? "w-6 h-6" : "w-5 h-5")} />
-            {!collapsed && <span className="font-medium text-sm">{item.label}</span>}
-          </button>
-        ))}
+        {menuItems
+          .filter(item => !item.roles || (user?.role && item.roles.includes(user.role)))
+          .map((item) => (
+            <button
+              key={item.label}
+              onClick={() => router.push(item.route)}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+                "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                pathname === item.route && "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg",
+              )}
+            >
+              <item.icon className={cn("flex-shrink-0", collapsed ? "w-6 h-6" : "w-5 h-5")} />
+              {!collapsed && <span className="font-medium text-sm">{item.label}</span>}
+            </button>
+          ))}
       </nav>
 
       {/* User Profile */}

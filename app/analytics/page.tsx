@@ -6,7 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BarChart3, Users, DollarSign, AlertTriangle } from "lucide-react"
 import React, { useEffect, useState, Suspense } from "react"
 
-import { apiGet } from "@/lib/api"
+import { apiGet, getCurrentUser } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
 
 function centsToKES(cents?: number) {
   if (!cents && cents !== 0) return "—"
@@ -14,16 +16,30 @@ function centsToKES(cents?: number) {
 }
 
 export default function AnalyticsPage() {
-  const [overview, setOverview] = useState<any | null>(null)
-  const [portfolio, setPortfolio] = useState<any | null>(null)
-  const [demographics, setDemographics] = useState<any | null>(null)
-  const [repayments, setRepayments] = useState<any | null>(null)
-  const [performance, setPerformance] = useState<any | null>(null)
-  const [officers, setOfficers] = useState<any | null>(null)
-  const [risk, setRisk] = useState<any | null>(null)
+  const { toast } = useToast()
+  const router = useRouter()
+
+  const [overview, setOverview] = useState<any>(null)
+  const [portfolio, setPortfolio] = useState<any>(null)
+  const [demographics, setDemographics] = useState<any>(null)
+  const [repayments, setRepayments] = useState<any>(null)
+  const [performance, setPerformance] = useState<any>(null)
+  const [officers, setOfficers] = useState<any>(null)
+  const [risk, setRisk] = useState<any>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
+    const user = getCurrentUser()
+    if (user && user.role !== "super_admin") {
+      toast({
+        title: "Access Denied",
+        description: "Audit logs are restricted to system administrators.",
+        variant: "destructive"
+      })
+      router.push("/dashboard")
+      return
+    }
+
     let mounted = true
       ; (async () => {
         const endpoints = [

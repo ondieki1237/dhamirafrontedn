@@ -23,7 +23,7 @@ To support the updated frontend workflows, ensure the following API endpoints ar
 ## 2. Loan Lifecycle Rules (Backend Enforcement)
 ### 📝 Initial Loan Initiation
 **Endpoint**: `POST /api/loans/initiate`
-**Rule**: Verify that `client.savings_balance_cents >= (payload.amountKES * 100 * 0.2)`. Return a `400 Bad Request` if insufficient.
+**Rule**: (Removed) Verify that `client.savings_balance_cents >= (payload.amountKES * 100 * 0.2)`. 
 
 ### 💰 Disburse Loan
 **Endpoint**: `POST /api/loans/:id/disburse`

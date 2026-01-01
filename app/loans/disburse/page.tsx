@@ -5,19 +5,25 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, DollarSign } from "lucide-react"
+import { ArrowLeft, DollarSign, Phone } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { apiGet, apiPostJson, getCurrentUser } from "@/lib/api"
+import { apiGet, apiPutJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
 type Loan = {
     _id: string
-    client: { name: string; nationalId: string } | string
-    type: string
-    amount: number
+    clientId: {
+        _id: string
+        name: string
+        nationalId: string
+        phone: string
+    } | string
+    product: string
+    principal_cents: number
     term: number
     status: string
     createdAt: string
+    approvedAt?: string
 }
 
 export default function DisburseLoanPage() {
@@ -32,7 +38,7 @@ export default function DisburseLoanPage() {
 
     useEffect(() => {
         if (!canDisburse) {
-            toast({ title: "Access Denied", description: "Only authorized admins can access this page" })
+            toast({ title: "Access Denied", description: "Only authorized admins can access this page", variant: "destructive" })
             router.push("/loans")
             return
         }
@@ -42,26 +48,29 @@ export default function DisburseLoanPage() {
     const fetchLoans = async () => {
         try {
             setLoading(true)
-            const data = await apiGet<Loan[]>("/api/loans")
-            // Filter for loans ready for disbursement
-            const approvedLoans = (data || []).filter((loan) => loan.status === "approved")
-            setLoans(approvedLoans)
+            const response = await apiGet<any>("/api/loans?status=approved")
+            const loansList = Array.isArray(response) ? response : (response?.data || [])
+            setLoans(loansList)
         } catch (e: any) {
-            toast({ title: "Error", description: e?.message || "Failed to load loans" })
+            toast({ title: "Error", description: e?.message || "Failed to load loans", variant: "destructive" })
         } finally {
             setLoading(false)
         }
     }
 
     const handleDisburse = async (loanId: string) => {
-        if (!window.confirm("Trigger M-Pesa disbursement for this loan?")) return
+        if (!window.confirm("Initiate M-Pesa B2C disbursement for this loan?\\n\\nThis will transfer funds to the client's mobile number.")) return
         try {
             setDisbursing(loanId)
-            await apiPostJson(`/api/loans/${loanId}/disburse`, {})
-            toast({ title: "Success", description: "Disbursement triggered successfully" })
+            const result = await apiPutJson(`/api/loans/${loanId}/disburse`, {})
+            toast({
+                title: "Disbursement Initiated",
+                description: `Transaction ID: ${result.transactionId || 'Created'}. M-Pesa payment is being processed.`
+            })
+            // Refresh the list after successful initiation
             fetchLoans()
         } catch (e: any) {
-            toast({ title: "Error", description: e?.message || "Failed to disburse loan" })
+            toast({ title: "Disbursement Failed", description: e?.message || "Failed to disburse loan", variant: "destructive" })
         } finally {
             setDisbursing(null)
         }
@@ -76,7 +85,7 @@ export default function DisburseLoanPage() {
                         Back
                     </Button>
                     <h1 className="text-3xl font-bold text-foreground">Pending Disbursements</h1>
-                    <p className="text-muted-foreground mt-1">Review and disburse funds for approved loans</p>
+                    <p className="text-muted-foreground mt-1">Review and disburse funds for approved loans via M-Pesa B2C</p>
                 </div>
 
                 {loading ? (
@@ -84,61 +93,77 @@ export default function DisburseLoanPage() {
                         <p className="text-muted-foreground">Loading loans...</p>
                     </Card>
                 ) : loans.length === 0 ? (
-                    <Card className="neumorphic p-6 bg-card border-0">
-                        <p className="text-muted-foreground">No loans pending disbursement</p>
+                    <Card className="neumorphic p-6 bg-card border-0 text-center py-12">
+                        <p className="text-muted-foreground text-lg">No loans pending disbursement</p>
+                        <p className="text-sm text-muted-foreground mt-2">All approved loans have been disbursed</p>
                     </Card>
                 ) : (
                     <div className="space-y-4">
                         {loans.map((loan) => {
-                            const clientName = typeof loan.client === "string" ? loan.client : (loan.client as any)?.name || "—"
+                            const client = typeof loan.clientId === 'object' ? loan.clientId : null
+                            const clientName = client?.name || "—"
+                            const clientPhone = client?.phone || "—"
+                            const amount = loan.principal_cents / 100
 
                             return (
-                                <Card key={loan._id} className="neumorphic p-6 bg-card border-0">
-                                    <div className="flex items-center justify-between">
+                                <Card key={loan._id} className="neumorphic p-6 bg-card border-0 hover:shadow-lg transition-shadow">
+                                    <div className="flex items-center justify-between gap-6">
                                         <div className="flex-1">
-                                            <div className="flex items-center gap-4 mb-4">
+                                            <div className="flex items-center gap-6 mb-4 flex-wrap">
                                                 <div>
-                                                    <p className="text-sm text-muted-foreground">Loan ID</p>
-                                                    <p className="font-mono font-semibold">{loan._id.substring(0, 8)}...</p>
+                                                    <p className="text-xs text-muted-foreground">Loan ID</p>
+                                                    <p className="font-mono font-semibold text-sm">{loan._id.substring(0, 12)}...</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm text-muted-foreground">Client</p>
+                                                    <p className="text-xs text-muted-foreground">Client</p>
                                                     <p className="font-semibold">{clientName}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm text-muted-foreground">Status</p>
+                                                    <p className="text-xs text-muted-foreground">Phone</p>
+                                                    <p className="font-semibold flex items-center gap-1">
+                                                        <Phone className="w-3 h-3" />
+                                                        {clientPhone}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Status</p>
                                                     <Badge className="bg-green-100 text-green-700 border-green-200">
                                                         {loan.status.toUpperCase()}
                                                     </Badge>
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                                 <div>
-                                                    <p className="text-sm text-muted-foreground">Amount</p>
-                                                    <p className="font-bold text-primary text-lg">KES {loan.amount.toLocaleString()}</p>
+                                                    <p className="text-xs text-muted-foreground">Principal Amount</p>
+                                                    <p className="font-bold text-primary text-lg">KES {amount.toLocaleString()}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm text-muted-foreground">Duration</p>
-                                                    <p className="font-semibold">{loan.term} months</p>
+                                                    <p className="text-xs text-muted-foreground">Product</p>
+                                                    <Badge variant="outline" className="uppercase text-xs">{loan.product}</Badge>
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm text-muted-foreground">Date Approved</p>
-                                                    <p className="font-semibold">{new Date(loan.createdAt).toLocaleDateString()}</p>
+                                                    <p className="text-xs text-muted-foreground">Term</p>
+                                                    <p className="font-semibold">{loan.term} {loan.product === 'fafa' ? 'weeks' : 'months'}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Approved Date</p>
+                                                    <p className="font-semibold text-sm">{new Date(loan.approvedAt || loan.createdAt).toLocaleDateString()}</p>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex flex-col gap-2 ml-6">
+                                        <div className="flex flex-col gap-2">
                                             <Button
                                                 onClick={() => handleDisburse(loan._id)}
                                                 disabled={disbursing === loan._id}
-                                                className="gap-2 bg-primary text-white"
+                                                className="gap-2 bg-primary text-white hover:bg-primary/90 min-w-[140px]"
                                             >
                                                 <DollarSign className="w-4 h-4" />
-                                                {disbursing === loan._id ? "Disbursing..." : "Disburse Funds"}
+                                                {disbursing === loan._id ? "Processing..." : "Disburse Now"}
                                             </Button>
                                             <Button
                                                 variant="ghost"
                                                 onClick={() => router.push(`/loans/${loan._id}`)}
+                                                className="text-xs"
                                             >
                                                 View Details
                                             </Button>

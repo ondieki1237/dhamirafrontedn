@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { DollarSign, Users, TrendingUp, AlertCircle } from "lucide-react"
 import { Card } from "@/components/ui/card"
+import { apiGet } from "@/lib/api"
 
 function centsToKES(cents: number) {
   return `KES ${Number(cents / 100).toLocaleString()}`
@@ -10,29 +11,24 @@ function centsToKES(cents: number) {
 
 export function DashboardStats() {
   const [data, setData] = useState<any | null>(null)
-
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        const API = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "")
-        const url = API ? `${API}/api/analytics/overview` : `/api/analytics/overview`
-        const res = await fetch(url)
-        if (!res.ok) throw new Error(`Analytics endpoint returned ${res.status}`)
-        const json = await res.json()
-        if (mounted) {
-          setData(json)
-          setError(null)
+      ; (async () => {
+        try {
+          const json = await apiGet<any>("/api/analytics/overview")
+          if (mounted) {
+            setData(json)
+            setError(null)
+          }
+        } catch (e: any) {
+          if (mounted) {
+            setError(e?.message || "Failed to load analytics")
+            setData(null)
+          }
         }
-      } catch (e: any) {
-        if (mounted) {
-          setError(e?.message || "Failed to load analytics")
-          setData(null)
-        }
-      }
-    })()
+      })()
     return () => {
       mounted = false
     }

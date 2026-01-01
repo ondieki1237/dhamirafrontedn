@@ -113,12 +113,12 @@ export default function ApproveLoanPage() {
         ) : (
           <div className="space-y-4">
             {loans.map((loan) => {
-              const clientName = typeof loan.client === "string" ? loan.client : loan.client.name
-              const clientId = typeof loan.client === "string" ? "" : loan.client.nationalId
+              const clientName = (typeof loan.client === "string" ? loan.client : (loan.client as any)?.name) || (loan as any).clientName || "—"
+              const clientId = typeof loan.client === "string" ? "" : loan.client?.nationalId || ""
               const anyLoan = loan as any
               const initiatorId = anyLoan?.initiatedBy?._id || anyLoan?.initiatedBy?.id || anyLoan?.initiatedBy || anyLoan?.createdBy || anyLoan?.createdById
               const isInitiator = user?._id && initiatorId && user._id === initiatorId
-              
+
               return (
                 <Card key={loan._id} className="neumorphic p-6 bg-card border-0">
                   <div className="flex items-center justify-between">
@@ -165,20 +165,20 @@ export default function ApproveLoanPage() {
                         </div>
                       )}
                     </div>
-                      <div className="flex flex-col gap-2 ml-6">
+                    <div className="flex flex-col gap-2 ml-6">
                       {loan.status === "initiated" && (
                         <>
-                          <Button 
-                            onClick={() => handleApprove(loan._id)} 
+                          <Button
+                            onClick={() => handleApprove(loan._id)}
                             className="gap-2 bg-green-600 hover:bg-green-700 text-white"
                             disabled={isInitiator}
                           >
                             <Check className="w-4 h-4" />
                             Approve
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            onClick={() => handleReject(loan._id)} 
+                          <Button
+                            variant="outline"
+                            onClick={() => handleReject(loan._id)}
                             className="gap-2 text-red-600 border-red-200 hover:bg-red-50"
                             disabled={isInitiator}
                           >
@@ -190,8 +190,8 @@ export default function ApproveLoanPage() {
                           )}
                         </>
                       )}
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         onClick={() => router.push(`/loans/${loan._id}`)}
                       >
                         View Details

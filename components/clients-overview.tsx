@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress"
 import { Users, TrendingUp } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import { apiGet } from "@/lib/api"
 
 type GroupStat = {
   id?: string
@@ -21,31 +22,27 @@ export function ClientsOverview() {
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        const API = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "")
-        const url = API ? `${API}/api/groups?limit=6` : "/api/groups?limit=6"
-        const res = await fetch(url)
-        if (!res.ok) throw new Error(`groups endpoint ${res.status}`)
-        const data = await res.json()
-        if (!mounted) return
-        const list = (Array.isArray(data) ? data : data?.items || data?.data || []).map((g: any) => {
-          const members = g.members?.length ?? g.memberCount ?? g.membersCount ?? 0
-          const loans = g.loans?.length ?? g.loansCount ?? g.loanCount ?? 0
-          const progress = g.activityProgress ?? (members ? Math.round((loans / members) * 100) : 0)
-          return {
-            id: g._id || g.id,
-            name: g.name || g.groupName || "Unnamed Group",
-            members,
-            loans,
-            progress,
-          }
-        })
-        setGroups(list)
-      } catch (e: any) {
-        setError(e?.message || "Failed to load groups")
-      }
-    })()
+      ; (async () => {
+        try {
+          const data = await apiGet<any>("/api/groups?limit=6")
+          if (!mounted) return
+          const list = (Array.isArray(data) ? data : data?.items || data?.data || []).map((g: any) => {
+            const members = g.members?.length ?? g.memberCount ?? g.membersCount ?? 0
+            const loans = g.loans?.length ?? g.loansCount ?? g.loanCount ?? 0
+            const progress = g.activityProgress ?? (members ? Math.round((loans / members) * 100) : 0)
+            return {
+              id: g._id || g.id,
+              name: g.name || g.groupName || "Unnamed Group",
+              members,
+              loans,
+              progress,
+            }
+          })
+          setGroups(list)
+        } catch (e: any) {
+          setError(e?.message || "Failed to load groups")
+        }
+      })()
     return () => {
       mounted = false
     }

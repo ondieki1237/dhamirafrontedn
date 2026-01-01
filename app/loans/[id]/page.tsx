@@ -4,7 +4,20 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Check, X, UserPlus, ClipboardCheck, DollarSign } from "lucide-react"
+import {
+  Check,
+  DollarSign,
+  ArrowLeft,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  UserPlus,
+  ClipboardCheck,
+  Shield,
+  Scale,
+  X
+} from "lucide-react"
+import Link from "next/link"
 import { useRouter, useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { apiGet, apiPostJson, apiPutJson, getCurrentUser } from "@/lib/api"
@@ -89,22 +102,30 @@ export default function LoanDetailPage() {
       // 1. Aggressive Client Recovery
       if (res && res.loan) {
         const c = res.loan.client
-        const clientId = typeof c === "string" ? c : (res.loan as any).clientId
-        const curName = typeof c === "object" ? c?.name : null
+        // If client is a string (just the ID) or it's an object but name is missing
+        const isIdOnly = typeof c === "string"
+        const isMissingName = typeof c === "object" && !c?.name
 
-        if (clientId && !curName) {
+        const clientId = isIdOnly ? (c as string) : (res.loan as any).clientId || (typeof c === "object" ? c?._id : null)
+
+        if (clientId && (isIdOnly || isMissingName)) {
+          console.log(`Loan Details: Client name missing for ID ${clientId}, attempting recovery...`)
           try {
             // Path A: Direct fetch
             const clientData = await apiGet<any>(`/api/clients/${clientId}`)
             const clientInfo = clientData?.data || clientData
             if (clientInfo && clientInfo.name) {
               res.loan.client = clientInfo
+              console.log(`Loan Details: Recovered name ${clientInfo.name}`)
             } else {
               // Path B: Search global list as fallback
               const allClients = await apiGet<any>("/api/clients?limit=1000")
               const clientsArr = Array.isArray(allClients) ? allClients : (allClients?.data || [])
               const found = clientsArr.find((cl: any) => cl._id === clientId)
-              if (found) res.loan.client = found
+              if (found) {
+                res.loan.client = found
+                console.log(`Loan Details: Recovered name ${found.name} from global list`)
+              }
             }
           } catch (e) {
             console.error("Aggressive client recovery failed", e)
@@ -112,13 +133,34 @@ export default function LoanDetailPage() {
         }
       }
 
-      // 2. Aggressive Guarantor Recovery (if list is empty or docs are incomplete)
-      if (!res.guarantors || res.guarantors.length === 0) {
+      // 2. Aggressive Guarantor Recovery (ensure we get all 3)
+      if (!res.guarantors || res.guarantors.length < 3) {
         try {
+          console.log(`Loan Details: Guarantors count ${res.guarantors?.length || 0}, fetching exhaustive list...`)
           const gData = await apiGet<any>(`/api/guarantors?loanId=${loanId}`)
-          res.guarantors = Array.isArray(gData) ? gData : (gData?.data || [])
+          const exhaustiveGuarantors = Array.isArray(gData) ? gData : (gData?.data || [])
+
+          if (exhaustiveGuarantors.length > (res.guarantors?.length || 0)) {
+            res.guarantors = exhaustiveGuarantors
+            console.log(`Loan Details: Successfully updated to ${exhaustiveGuarantors.length} guarantors.`)
+          }
         } catch (e) {
           console.error("Guarantor recovery failed", e)
+        }
+      }
+
+      // 3. Fetch Credit Assessment if missing
+      // Backend returns creditAssessment field, not assessment
+      if (!(res as any).creditAssessment) {
+        try {
+          const assessmentRes = await apiGet<any>(`/api/credit-assessments/${loanId}`)
+          // Backend returns single object, not array
+          if (assessmentRes && assessmentRes._id) {
+            (res as any).creditAssessment = assessmentRes
+            console.log("Loan Details: Found existing credit assessment manually.")
+          }
+        } catch (e) {
+          console.error("Failed to fetch assessment manually", e)
         }
       }
 
@@ -196,6 +238,14 @@ export default function LoanDetailPage() {
     }
   }
 
+  // Manually inject credit-assessment button if status is initiated
+  if (loan.status === "initiated" && canMarkFee) {
+    const hasAssessAction = actions.some(a => a.key === "credit-assessment")
+    if (!hasAssessAction) {
+      actions = [{ key: "credit-assessment", label: "Perform Credit Assessment" }, ...actions]
+    }
+  }
+
   const clientName = typeof loan.client === "string"
     ? loan.client
     : (loan.client?.name || (loan as any).clientName || "—")
@@ -212,7 +262,16 @@ export default function LoanDetailPage() {
   }
 
   const handleAction = async (actionKey: string) => {
-    if (!window.confirm(`Perform "${actionKey}" on this loan?`)) return
+    if (actionKey === "credit-assessment") {
+      router.push(`/loans/${loanId}/assess`)
+      return
+    }
+
+    // Skip confirmation for non-destructive, prerequisite actions
+    const skipConfirm = ["mark-application-fee-paid"].includes(actionKey)
+
+    if (!skipConfirm && !window.confirm(`Perform "${actionKey}" on this loan?`)) return
+
     try {
       setActionLoading(true)
       // Some actions might be POST, some PUT. We'll use PUT as default as per user request for individual mark-fee
@@ -380,6 +439,57 @@ export default function LoanDetailPage() {
           </div>
 
           <div className="space-y-6">
+            {/* Prerequisites Checklist */}
+            <Card className="neumorphic p-6 bg-card border-0 space-y-4">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary" />
+                Prerequisites
+              </h2>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Application Fee</span>
+                  <div className="flex items-center gap-2">
+                    {loan.applicationFeePaid ? (
+                      <Badge className="bg-green-100 text-green-700 border-green-200">Paid</Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-200">Unpaid</Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Guarantors (Min 3)</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`font-bold ${guarantors.length >= 3 ? "text-green-600" : "text-orange-600"}`}>
+                      {guarantors.length} / 3
+                    </span>
+                    {guarantors.length >= 3 ? (
+                      <Check className="w-4 h-4 text-green-600" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-orange-600" />
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Credit Assessment</span>
+                  <div className="flex items-center gap-2">
+                    {(data as any).creditAssessment ? (
+                      <Badge className="bg-green-100 text-green-700 border-green-200">Completed</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground">Missing</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {loan.status === "initiated" && (!loan.applicationFeePaid || guarantors.length < 3) && (
+                <p className="text-[10px] text-orange-600 bg-orange-50 p-2 rounded border border-orange-100 italic">
+                  Complete all prerequisites to enable approval.
+                </p>
+              )}
+            </Card>
+
             {/* Totals Summary */}
             <Card className="neumorphic p-6 bg-card border-0 space-y-4">
               <h2 className="text-lg font-bold">Totals Summary</h2>
@@ -426,6 +536,7 @@ export default function LoanDetailPage() {
                       {act.key === 'approve' && <Check className="w-4 h-4" />}
                       {act.key === 'disburse' && <DollarSign className="w-4 h-4" />}
                       {act.key === 'mark-application-fee-paid' && <ClipboardCheck className="w-4 h-4" />}
+                      {act.key === 'credit-assessment' && <Scale className="w-4 h-4" />}
                       {act.label}
                     </Button>
                   ))}

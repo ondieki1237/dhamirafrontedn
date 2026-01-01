@@ -9,10 +9,17 @@ function getToken(): string | null {
   if (typeof window === "undefined") return null
   try {
     const match = document.cookie.match(/(?:^|; )token=([^;]+)/)
-    const token = match ? decodeURIComponent(match[1]) : localStorage.getItem("token")
+    let token = match ? decodeURIComponent(match[1]) : localStorage.getItem("token")
+
+    if (token) {
+      token = token.trim()
+      if (token.startsWith('"') && token.endsWith('"')) {
+        token = token.substring(1, token.length - 1)
+      }
+    }
 
     if (!token) {
-      console.warn("Dhamira API: No token found in cookies or localStorage.")
+      console.warn("Dhamira API: No Auth Token found. Request may fail on protected routes.")
     }
 
     return token

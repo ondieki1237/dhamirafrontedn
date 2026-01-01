@@ -42,15 +42,18 @@ export default function InitiateLoanPage() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [submissionResult, setSubmissionResult] = useState<any>(null)
 
   useEffect(() => {
     let mounted = true
       ; (async () => {
         try {
           const raw = await apiGet<any>("/api/clients?limit=1000")
+          console.log("Loan Initiation: Fetched clients", raw)
           const list = Array.isArray(raw) ? raw : (raw?.data || [])
           if (mounted) setClients(list)
-        } catch (e) {
+        } catch (e: any) {
+          console.error("Loan Initiation: Failed to fetch clients", e)
           // ignore; form still usable
         }
       })()
@@ -80,6 +83,7 @@ export default function InitiateLoanPage() {
         try {
           setGroupLoading(true)
           const raw = await apiGet(`/api/groups/${gid}`)
+          console.log(`Loan Initiation: Fetched group ${gid}`, raw)
           if (!mounted) return
           const g = raw?.data || raw
           setGroupInfo(g)
@@ -108,7 +112,11 @@ export default function InitiateLoanPage() {
     setUserRole(u?.role || null)
   }, [])
 
-  const canInitiate = userRole && ["super_admin", "initiator_admin"].includes(userRole)
+  const canInitiate = useMemo(() => {
+    if (!userRole) return false;
+    const roleLower = userRole.toLowerCase();
+    return ["super_admin", "initiator_admin", "admin"].includes(roleLower);
+  }, [userRole]);
 
   const selectedClient = useMemo(() => {
     return clients.find(c => c.nationalId === form.clientNationalId)
@@ -116,15 +124,29 @@ export default function InitiateLoanPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log("Loan Initiation: Submitting form...", { canInitiate, userRole, form })
+
     if (!canInitiate) {
-      toast({ title: "Not allowed", description: "Only Initiator Admins can initiate loans." })
+      toast({
+        title: "Access Denied",
+        description: `Your role (${userRole || 'Unknown'}) does not have permission to initiate loans.`,
+        variant: "destructive"
+      })
       return
     }
 
     const amountKES = Number(form.amountKES)
+    if (isNaN(amountKES) || amountKES <= 0) {
+      toast({ title: "Invalid Amount", description: "Please enter a valid loan amount.", variant: "destructive" })
+      return
+    }
+
     if (selectedClient) {
+      // Savings requirement removed as per user request
+      /*
       const savings = (selectedClient as any).savings_balance_cents || 0
       const threshold = amountKES * 20 // 20% of amount in cents (amountKES * 100 * 0.2 = amountKES * 20)
+      console.log("Loan Initiation: Checking savings", { savings, threshold, amountKES })
       if (savings < threshold) {
         toast({
           title: "Insufficient Savings",
@@ -133,27 +155,40 @@ export default function InitiateLoanPage() {
         })
         return
       }
+      */
+    } else if (!form.groupId) {
+      console.warn("Loan Initiation: No client selected and no groupId provided")
+      toast({ title: "Missing Information", description: "Please select a client or provide a Group ID.", variant: "destructive" })
+      return
     }
 
     try {
       setSubmitting(true)
       const payload: any = {}
-      if (form.groupId) {
-        payload.groupId = form.groupId
+      if (form.groupId && form.groupId.trim()) {
+        payload.groupId = form.groupId.trim()
+      } else if (form.clientNationalId) {
+        payload.clientNationalId = form.clientNationalId.trim()
       } else {
-        payload.clientNationalId = form.clientNationalId
+        toast({ title: "Missing Information", description: "Either Client National ID or Group ID is required.", variant: "destructive" })
+        return
       }
-      payload.product = form.product
+
+      payload.product = form.product.trim().toLowerCase()
       payload.amountKES = amountKES
       payload.term = Number(form.term)
       if (form.interestRatePercent) payload.interestRatePercent = Number(form.interestRatePercent)
-      if (form.purpose) payload.purpose = form.purpose
+      if (form.purpose) payload.purpose = form.purpose.trim()
 
       const validGuarantors = form.guarantors.filter(g => g.name.trim() && g.clientNationalId.trim())
-      if (validGuarantors.length < 3) {
+      console.log("Loan Initiation: Valid guarantors found:", validGuarantors.length)
+
+      // Individual loans (no groupId provided) require at least 3 guarantors
+      const isIndividual = !payload.groupId
+      if (isIndividual && validGuarantors.length < 3) {
         toast({
-          title: "Insufficient Guarantors",
-          description: "At least 3 guarantors are required for loan application.",
+          title: "Missing Information",
+          description: `Individual loans require at least 3 guarantors. Currently valid: ${validGuarantors.length}`,
           variant: "destructive"
         })
         return
@@ -169,10 +204,14 @@ export default function InitiateLoanPage() {
       })
 
       payload.guarantors = enrichedGuarantors
+      console.log("Loan Initiation: Sending payload:", payload)
 
-      await apiPostJson("/api/loans/initiate", payload)
+      const result = await apiPostJson("/api/loans/initiate", payload)
+      console.log("Loan Initiation: Success!", result)
+      setSubmissionResult(result)
       setShowSuccess(true)
     } catch (e: any) {
+      console.error("Loan Initiation: Submission failed", e)
       let msg = e?.message || "Failed to initiate loan"
 
       // Specifically handle the duplicate key error for guarantors
@@ -183,7 +222,7 @@ export default function InitiateLoanPage() {
       if (msg.toLowerCase().includes("group not active") || msg.toLowerCase().includes("not_active") || msg.toLowerCase().includes("inactive")) {
         setGroupInactiveReason(msg)
       }
-      toast({ title: "Error", description: msg, variant: "destructive" })
+      toast({ title: "Submission Failed", description: msg, variant: "destructive" })
     } finally {
       setSubmitting(false)
     }
@@ -210,7 +249,7 @@ export default function InitiateLoanPage() {
                   value={form.clientNationalId}
                   onChange={(e) => setForm({ ...form, clientNationalId: e.target.value })}
                   required={!form.groupId}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
+                  className={`w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm ${!form.clientNationalId && !form.groupId ? 'ring-1 ring-orange-200' : ''}`}
                 >
                   <option value="">Select a client</option>
                   {clients.map((c) => (
@@ -223,27 +262,33 @@ export default function InitiateLoanPage() {
             )}
 
             <div>
-              <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Group (optional)</label>
+              <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">
+                Group ID (Optional for individuals)
+              </label>
               <input
                 type="text"
                 value={form.groupId}
                 onChange={(e) => setForm({ ...form, groupId: e.target.value })}
-                placeholder="Group ID (for group loans)"
+                placeholder="Leave empty for individual loan"
                 className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
               />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                If provided, the system will apply group-specific validation rules.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Product</label>
-                <input
-                  type="text"
+                <select
                   value={form.product}
                   onChange={(e) => setForm({ ...form, product: e.target.value })}
                   className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
-                  placeholder="e.g., fafa"
                   required
-                />
+                >
+                  <option value="business">Business Loan (Monthly)</option>
+                  <option value="fafa">FAFA Loan (Weekly)</option>
+                </select>
               </div>
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Loan Amount (KES)</label>
@@ -284,7 +329,12 @@ export default function InitiateLoanPage() {
 
             <div className="space-y-4 pt-4 border-t border-border">
               <div className="flex items-center justify-between">
-                <label className="block text-xs sm:text-sm font-semibold text-foreground">Guarantors (At least 3 required)</label>
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold text-foreground">Guarantors</label>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    {form.groupId ? "Optional for group loans" : "At least 3 required for individual loans"}
+                  </p>
+                </div>
                 <Button
                   type="button"
                   variant="outline"
@@ -400,8 +450,20 @@ export default function InitiateLoanPage() {
               <Button type="button" variant="outline" onClick={() => router.back()} className="px-6 sm:px-8 py-2 sm:py-3 text-sm sm:text-base">
                 Cancel
               </Button>
-              <Button type="submit" disabled={submitting} className="px-6 sm:px-8 py-2 sm:py-3 bg-primary text-white neumorphic neumorphic-hover border-0 text-sm sm:text-base">
-                {submitting ? "Submitting..." : "Submit Loan"}
+              <Button
+                type="submit"
+                disabled={submitting}
+                className={`px-6 sm:px-8 py-2 sm:py-3 text-white neumorphic border-0 text-sm sm:text-base transition-all ${submitting ? 'opacity-70' : 'neumorphic-hover bg-primary'
+                  }`}
+              >
+                {submitting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Processing...
+                  </span>
+                ) : (
+                  "Submit Loan Application"
+                )}
               </Button>
             </div>
           </form>
@@ -417,6 +479,24 @@ export default function InitiateLoanPage() {
             <div>
               <h2 className="text-2xl font-bold text-foreground">Loan Successfully Initiated!</h2>
               <p className="text-muted-foreground mt-2">The application has been saved and is now awaiting assessment.</p>
+
+              {submissionResult?.application_fee_cents && (
+                <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                  <p className="text-xs text-blue-700 font-semibold uppercase tracking-wider">Application Fee</p>
+                  <p className="text-lg font-bold text-blue-900">KES {(submissionResult.application_fee_cents / 100).toLocaleString()}</p>
+                </div>
+              )}
+
+              {submissionResult?.guarantorErrors && submissionResult.guarantorErrors.length > 0 && (
+                <div className="mt-4 p-3 bg-orange-50 rounded-xl border border-orange-200 text-left">
+                  <p className="text-xs text-orange-700 font-bold mb-1 uppercase tracking-tighter">Guarantor Sync Notes</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    {submissionResult.guarantorErrors.map((err: string, i: number) => (
+                      <li key={i} className="text-[10px] text-orange-600 leading-tight">{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-3 pt-4">
               <Button

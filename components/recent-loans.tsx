@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { MoreVertical } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import { apiGet } from "@/lib/api"
 
 type RecentLoan = {
   id: string
@@ -39,28 +40,24 @@ export function RecentLoans() {
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        const API = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "")
-        const url = API ? `${API}/api/loans?limit=5` : "/api/loans?limit=5"
-        const res = await fetch(url)
-        if (!res.ok) throw new Error(`loans endpoint ${res.status}`)
-        const data = await res.json()
-        if (!mounted) return
-        const list: RecentLoan[] = (Array.isArray(data) ? data : data?.items || data?.data || []).map((l: any) => ({
-          id: l._id || l.id || l.loanId || "",
-          client: l.client?.name || l.clientName || l.client || (l.applicant && (l.applicant.name || l.applicant)) || "Unknown",
-          type: l.type || l.product || l.loanType || "",
-          amount: l.amountString || (l.amountKES ? `KES ${l.amountKES}` : undefined),
-          amountCents: l.amountCents,
-          status: l.status,
-          date: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : l.date || "",
-        }))
-        setLoans(list)
-      } catch (e: any) {
-        setError(e?.message || "Failed to load loans")
-      }
-    })()
+      ; (async () => {
+        try {
+          const data = await apiGet<any>("/api/loans?limit=5")
+          if (!mounted) return
+          const list: RecentLoan[] = (Array.isArray(data) ? data : data?.items || data?.data || []).map((l: any) => ({
+            id: l._id || l.id || l.loanId || "",
+            client: l.client?.name || l.clientName || l.client || (l.applicant && (l.applicant.name || l.applicant)) || "Unknown",
+            type: l.type || l.product || l.loanType || "",
+            amount: l.amountString || (l.amountKES ? `KES ${l.amountKES}` : undefined),
+            amountCents: l.amountCents,
+            status: l.status,
+            date: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : l.date || "",
+          }))
+          setLoans(list)
+        } catch (e: any) {
+          setError(e?.message || "Failed to load loans")
+        }
+      })()
     return () => {
       mounted = false
     }
