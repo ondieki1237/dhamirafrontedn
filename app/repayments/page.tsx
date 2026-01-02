@@ -45,7 +45,8 @@ export default function RepaymentsPage() {
     setUserRole(u?.role || null)
   }, [])
 
-  const canRecord = userRole && ["super_admin", "initiator_admin"].includes(userRole)
+  // Only admins can record repayments (operational task)
+  const canRecord = userRole && ["initiator_admin", "approver_admin"].includes(userRole)
 
   function normalizeHistoryPayload(payload: any): Repayment[] {
     if (!payload) return []

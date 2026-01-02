@@ -30,10 +30,11 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     const user = getCurrentUser()
-    if (user && user.role !== "super_admin") {
+    // Analytics should be accessible by super_admin and admins for reporting and decision-making
+    if (user && !["super_admin", "initiator_admin", "approver_admin"].includes(user.role || "")) {
       toast({
         title: "Access Denied",
-        description: "Audit logs are restricted to system administrators.",
+        description: "Analytics are restricted to administrators.",
         variant: "destructive"
       })
       router.push("/dashboard")
@@ -360,7 +361,7 @@ export default function AnalyticsPage() {
                         <AlertTriangle className="w-5 h-5 text-red-600" />
                         <h4 className="font-semibold">High-Risk Clients</h4>
                       </div>
-                      <p className="text-2xl font-bold">{(risk && risk.scoreBuckets) ? Object.values(risk.scoreBuckets).slice(-1)[0] : "—"} clients</p>
+                      <p className="text-2xl font-bold">{(risk && risk.scoreBuckets) ? String(Object.values(risk.scoreBuckets).slice(-1)[0] || 0) : "—"} clients</p>
                       <p className="text-xs text-muted-foreground">Based on score distribution</p>
                     </div>
                     <div className="p-4 neumorphic-inset rounded-xl">

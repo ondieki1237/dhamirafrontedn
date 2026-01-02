@@ -115,7 +115,8 @@ function InitiateLoanPageContent() {
   const canInitiate = useMemo(() => {
     if (!userRole) return false;
     const roleLower = userRole.toLowerCase();
-    return ["super_admin", "initiator_admin", "admin"].includes(roleLower);
+    // Only loan_officer can initiate loans (maker-checker model)
+    return roleLower === "loan_officer";
   }, [userRole]);
 
   const selectedClient = useMemo(() => {

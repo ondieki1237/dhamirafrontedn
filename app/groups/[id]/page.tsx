@@ -10,7 +10,8 @@ import { useEffect, useState } from "react"
 import { apiGet, apiPutJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { SavingsAdjustmentDialog } from "@/components/savings-adjustment-dialog"
-import { History, PlusCircle } from "lucide-react"
+import { EditGroupDialog } from "@/components/edit-group-dialog"
+import { History, PlusCircle, Edit } from "lucide-react"
 
 // Types kept loose to be resilient to backend changes
 type Group = {
@@ -18,7 +19,13 @@ type Group = {
   name: string
   meetingDay?: string
   meetingTime?: string
+  status?: string
+  branchId?: string | { _id: string; name?: string; code?: string }
+  loanOfficer?: string | { _id: string; username?: string; name?: string }
   loanOfficerId?: string | { _id: string; username?: string; name?: string }
+  chairperson?: string | { _id: string; name?: string; nationalId?: string }
+  secretary?: string | { _id: string; name?: string; nationalId?: string }
+  treasurer?: string | { _id: string; name?: string; nationalId?: string }
   members?: Array<{ name?: string; nationalId?: string; _id: string; savings_balance_cents?: number }>
   signatories?: Array<{ role: string; memberNationalId: string }>
 }
@@ -41,14 +48,9 @@ export default function GroupDetailPage() {
   const [members, setMembers] = useState<ClientItem[]>([])
   const [loading, setLoading] = useState(true)
   const [membersLoading, setMembersLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({
-    chairperson: "",
-    secretary: "",
-    treasurer: "",
-  })
 
   const [isSavingsDialogOpen, setIsSavingsDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [targetClient, setTargetClient] = useState<{ id: string, name: string, balance: number } | null>(null)
   const [savingsHistory, setSavingsHistory] = useState<any[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -75,17 +77,6 @@ export default function GroupDetailPage() {
         return
       }
       setGroup(data)
-
-      // If existing signatories, prefill
-      const existing = (data.signatories || []).reduce((acc: Record<string, string>, s: { role: string; memberNationalId: string }) => {
-        acc[s.role] = s.memberNationalId
-        return acc
-      }, {})
-      setForm({
-        chairperson: existing.chairperson || "",
-        secretary: existing.secretary || "",
-        treasurer: existing.treasurer || "",
-      })
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load group" })
     } finally {
@@ -141,27 +132,6 @@ export default function GroupDetailPage() {
     }
   }
 
-  const onAssign = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      setSaving(true)
-      const payload = {
-        signatoryAssignments: [
-          { role: "chairperson", memberNationalId: form.chairperson },
-          { role: "secretary", memberNationalId: form.secretary },
-          { role: "treasurer", memberNationalId: form.treasurer },
-        ],
-      }
-      await apiPutJson(`/api/groups/${groupId}/assign-signatories`, payload)
-      toast({ title: "Signatories assigned" })
-      fetchGroup()
-    } catch (e: any) {
-      toast({ title: "Error", description: e?.message || "Failed to assign signatories" })
-    } finally {
-      setSaving(false)
-    }
-  }
-
   if (loading) {
     return (
       <DashboardLayout>
@@ -198,6 +168,17 @@ export default function GroupDetailPage() {
               <p className="text-muted-foreground mt-1">Group Details & Signatories</p>
             </div>
             <div className="flex items-center gap-3">
+              {canApprove && (
+                <Button
+                  onClick={() => setIsEditDialogOpen(true)}
+                  variant="outline"
+                  size="sm"
+                  className="px-3 py-2 gap-2"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit Group
+                </Button>
+              )}
               <Button
                 onClick={() => router.push(`/loans/initiate?groupId=${group._id}`)}
                 size="sm"
@@ -224,53 +205,76 @@ export default function GroupDetailPage() {
         </div>
 
         <Card className="neumorphic p-6 bg-card border-0">
-          <h2 className="text-xl font-bold mb-4">Assign Signatories</h2>
-          <form className="space-y-6" onSubmit={onAssign}>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Chairperson (National ID)</label>
-                <input
-                  type="text"
-                  value={form.chairperson}
-                  onChange={(e) => setForm({ ...form, chairperson: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary"
-                  placeholder="e.g., 12345678"
-                  required
-                />
+          <h2 className="text-xl font-bold mb-4">Group Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Group Name</p>
+              <p className="font-semibold">{group.name}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Status</p>
+              <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20">
+                {group.status?.toUpperCase() || "ACTIVE"}
+              </Badge>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Meeting Day</p>
+              <p className="font-semibold">{group.meetingDay || "—"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Meeting Time</p>
+              <p className="font-semibold">{group.meetingTime || "—"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Branch</p>
+              <p className="font-semibold">
+                {typeof group.branchId === "string" 
+                  ? group.branchId 
+                  : (group.branchId?.name || "—")}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Loan Officer</p>
+              <p className="font-semibold">{officerName}</p>
+            </div>
+          </div>
+
+          {/* Current Signatories */}
+          <div className="mt-6 pt-6 border-t border-border">
+            <h3 className="text-lg font-bold mb-4">Current Signatories</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-lg bg-background neumorphic-inset">
+                <p className="text-xs text-muted-foreground mb-2">Chairperson</p>
+                <p className="font-semibold">
+                  {typeof group.chairperson === "string" 
+                    ? group.chairperson 
+                    : group.chairperson?.name 
+                      ? `${group.chairperson.name} (${group.chairperson.nationalId})` 
+                      : "Not assigned"}
+                </p>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Secretary (National ID)</label>
-                <input
-                  type="text"
-                  value={form.secretary}
-                  onChange={(e) => setForm({ ...form, secretary: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary"
-                  placeholder="e.g., 87654321"
-                  required
-                />
+              <div className="p-4 rounded-lg bg-background neumorphic-inset">
+                <p className="text-xs text-muted-foreground mb-2">Secretary</p>
+                <p className="font-semibold">
+                  {typeof group.secretary === "string" 
+                    ? group.secretary 
+                    : group.secretary?.name 
+                      ? `${group.secretary.name} (${group.secretary.nationalId})` 
+                      : "Not assigned"}
+                </p>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Treasurer (National ID)</label>
-                <input
-                  type="text"
-                  value={form.treasurer}
-                  onChange={(e) => setForm({ ...form, treasurer: e.target.value })}
-                  className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary"
-                  placeholder="e.g., 11223344"
-                  required
-                />
+              <div className="p-4 rounded-lg bg-background neumorphic-inset">
+                <p className="text-xs text-muted-foreground mb-2">Treasurer</p>
+                <p className="font-semibold">
+                  {typeof group.treasurer === "string" 
+                    ? group.treasurer 
+                    : group.treasurer?.name 
+                      ? `${group.treasurer.name} (${group.treasurer.nationalId})` 
+                      : "Not assigned"}
+                </p>
               </div>
             </div>
-            <div className="flex gap-4 justify-end">
-              <Button type="button" variant="outline" onClick={() => router.back()} className="px-8 py-3">
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving} className="px-8 py-3 bg-secondary text-white neumorphic neumorphic-hover border-0 gap-2">
-                <Save className="w-4 h-4" />
-                {saving ? "Saving..." : "Assign Signatories"}
-              </Button>
-            </div>
-          </form>
+          </div>
         </Card>
 
         {/* Group Savings Activities */}
@@ -342,7 +346,14 @@ export default function GroupDetailPage() {
           fetchMembers()
           fetchGroupSavingsHistory()
         }}
-      />
-    </DashboardLayout >
+      />      <EditGroupDialog
+        isOpen={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        group={group}
+        onSuccess={() => {
+          fetchGroup()
+          fetchMembers()
+        }}
+      />    </DashboardLayout>
   )
 }

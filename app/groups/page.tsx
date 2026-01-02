@@ -6,15 +6,23 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Plus, Users, TrendingUp } from "lucide-react"
+import { Plus, Users, TrendingUp, Edit } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { apiGet, apiPutJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { EditGroupDialog } from "@/components/edit-group-dialog"
 
 type GroupItem = {
   _id: string
   name: string
-  status?: "legacy" | "provisional" | "active"
+  status?: "legacy" | "provisional" | "active" | "pending" | "suspended"
+  meetingDay?: string
+  meetingTime?: string
+  branchId?: string | { _id: string; name?: string; code?: string }
+  loanOfficer?: string | { _id: string; name?: string }
+  chairperson?: string | { _id: string; name?: string; nationalId?: string }
+  secretary?: string | { _id: string; name?: string; nationalId?: string }
+  treasurer?: string | { _id: string; name?: string; nationalId?: string }
   // Backend may include stats; we’ll show placeholders if missing
   membersCount?: number
   activeLoansCount?: number
@@ -28,9 +36,15 @@ export default function GroupsPage() {
   const [groups, setGroups] = useState<GroupItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [groupToEdit, setGroupToEdit] = useState<any>(null)
   const user = getCurrentUser()
-  const canCreate = user?.role && ["super_admin", "loan_officer"].includes(user.role)
-  const canApprove = user?.role && ["super_admin", "initiator_admin", "approver_admin"].includes(user.role)
+  // Only loan officers can create groups (maker role)
+  const canCreate = user?.role && ["loan_officer"].includes(user.role)
+  // Only admins can approve groups (checker role)
+  const canApprove = user?.role && ["initiator_admin", "approver_admin"].includes(user.role)
+  // Only admins can edit groups
+  const canEdit = user?.role && ["initiator_admin", "approver_admin", "super_admin"].includes(user.role)
 
   useEffect(() => {
     let mounted = true
@@ -144,9 +158,24 @@ export default function GroupsPage() {
                 </div>
               </div>
 
-              <Button variant="outline" className="w-full mt-4 bg-transparent text-xs sm:text-sm py-2 sm:py-3" onClick={() => router.push(`/groups/${group._id}`)}>
-                View Details
-              </Button>
+              <div className="flex gap-2 mt-4">
+                <Button variant="outline" className="flex-1 bg-transparent text-xs sm:text-sm py-2 sm:py-3" onClick={() => router.push(`/groups/${group._id}`)}>
+                  View Details
+                </Button>
+                {canEdit && (
+                  <Button 
+                    variant="outline" 
+                    className="bg-transparent text-xs sm:text-sm py-2 sm:py-3 px-3"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setGroupToEdit(group)
+                      setIsEditDialogOpen(true)
+                    }}
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
               {canApprove && group.status === "provisional" && (
                 <Button
                   variant="default"
@@ -163,6 +192,20 @@ export default function GroupsPage() {
           ))}
         </div>
       </div>
+      <EditGroupDialog
+        isOpen={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        group={groupToEdit}
+        onSuccess={() => {
+          // Refresh groups list
+          apiGet<any>("/api/groups").then(raw => {
+            const normalized = Array.isArray(raw) ? raw : (raw?.data || [])
+            setGroups(normalized)
+          }).catch(e => {
+            console.error("Failed to refresh groups:", e)
+          })
+        }}
+      />
     </DashboardLayout>
   )
 }

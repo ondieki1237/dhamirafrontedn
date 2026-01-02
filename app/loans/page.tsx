@@ -45,8 +45,10 @@ export default function LoansPage() {
     setUserRole(user?.role || null)
   }, [])
 
-  const canInitiate = userRole && ["super_admin", "initiator_admin"].includes(userRole)
-  const canBulkAction = userRole && ["super_admin", "initiator_admin", "approver_admin"].includes(userRole)
+  // Only loan officers can initiate loans (maker role)
+  const canInitiate = userRole && ["loan_officer"].includes(userRole)
+  // Only admins can perform bulk actions (checker role)
+  const canBulkAction = userRole && ["initiator_admin", "approver_admin"].includes(userRole)
 
   const fetchLoans = async () => {
     try {

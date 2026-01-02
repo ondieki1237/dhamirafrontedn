@@ -118,11 +118,11 @@ export default function LoanHistoryPage() {
       return
     }
     
-    // Restrict to super admin only
-    if (userData.role !== "super_admin") {
+    // Accessible by super_admin and admins for reporting and oversight
+    if (!["super_admin", "initiator_admin", "approver_admin"].includes(userData.role || "")) {
       toast({
         title: "Access Denied",
-        description: "Only super administrators can view loan history.",
+        description: "Only administrators can view loan history.",
         variant: "destructive",
       })
       router.push("/dashboard")

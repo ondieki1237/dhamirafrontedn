@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { FileCheck, User, Clock, CheckCircle, XCircle, Download, Filter } from "lucide-react"
-import { apiGet } from "@/lib/api"
+import { apiGet, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
 
 type AuditLog = {
   id: string | number
@@ -76,10 +77,20 @@ const mockAuditLogs: AuditLog[] = [
 
 export default function AuditLogsPage() {
   const { toast } = useToast()
+  const router = useRouter()
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(mockAuditLogs)
   const [loading, setLoading] = useState(false)
+  const user = getCurrentUser()
+
+  // Audit logs are sensitive - only super_admin and admins should access
+  const canAccess = user?.role && ["super_admin", "initiator_admin", "approver_admin"].includes(user.role)
 
   useEffect(() => {
+    if (!canAccess) {
+      toast({ title: "Access Denied", description: "Only administrators can view audit logs" })
+      router.push("/dashboard")
+      return
+    }
     fetchAuditLogs()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

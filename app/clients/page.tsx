@@ -7,10 +7,11 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Filter, Download, X, DollarSign, History, PlusCircle } from "lucide-react"
+import { Plus, Filter, Download, X, DollarSign, History, PlusCircle, Edit } from "lucide-react"
 import { apiGet, apiPutJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { SavingsAdjustmentDialog } from "@/components/savings-adjustment-dialog"
+import { EditClientDialog } from "@/components/edit-client-dialog"
 
 type ClientItem = {
   _id: string
@@ -27,13 +28,24 @@ type ClientHistory = {
     name: string
     nationalId: string
     phone: string
+    status?: "legacy" | "pending" | "active"
     photoUrl?: string
-    residence: string
+    residence?: string
+    residenceType?: string
     businessType: string
     businessLocation: string
-    groupId?: { _id: string; name: string }
+    groupId?: { _id: string; name: string; status?: string; meetingDay?: string; meetingTime?: string }
+    loanOfficer?: { _id: string; username?: string; role?: string; email?: string; name?: string }
+    branchId?: { _id: string; name: string; location?: string; code?: string }
+    createdBy?: { _id: string; username?: string; role?: string }
+    approvedBy?: { _id: string; username?: string; role?: string }
     savings_balance_cents?: number
+    registrationFeePaid?: boolean
+    initialSavingsPaid?: boolean
+    registrationDate?: string
     nextOfKin?: { name?: string; phone?: string; relationship?: string }
+    createdAt?: string
+    updatedAt?: string
   }
   loans?: Array<{ _id: string; amount: number; status: string; createdAt: string; groupId?: any; initiatedBy?: any; approvedBy?: any }>
   assessments?: Array<{ _id: string; loanId?: string; totalScore: number; createdAt: string }>
@@ -65,68 +77,51 @@ function ClientsView() {
   const [clientHistory, setClientHistory] = useState<ClientHistory | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [isSavingsDialogOpen, setIsSavingsDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [clientToEdit, setClientToEdit] = useState<any>(null)
   const user = getCurrentUser()
-  const canOnboard = user?.role && ["super_admin", "loan_officer"].includes(user.role)
-  const canApprove = user?.role && ["super_admin", "initiator_admin", "approver_admin"].includes(user.role)
+  // Only loan officers can onboard new clients (maker role)
+  const canOnboard = user?.role && ["loan_officer"].includes(user.role)
+  // Only admins can approve client profiles (checker role)
+  const canApprove = user?.role && ["initiator_admin", "approver_admin"].includes(user.role)
+  // Only admins can edit clients
+  const canEdit = user?.role && ["initiator_admin", "approver_admin", "super_admin"].includes(user.role)
+
+  const fetchClients = async () => {
+    try {
+      setLoading(true)
+      const path = q
+        ? `/api/clients?search=${encodeURIComponent(q)}&limit=1000`
+        : `/api/clients?limit=1000`
+      const data: any = await apiGet(path)
+      const list: ClientItem[] = Array.isArray(data) ? data : (data?.data || [])
+      if (q) {
+        const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase()
+        const sq = normalize(q)
+        const exact = (list || []).filter((c) => {
+          if (!c) return false
+          const name = (c.name || "") && normalize(c.name || "")
+          const nid = (c.nationalId || "").toLowerCase().trim()
+          const id = (c._id || "").toLowerCase().trim()
+          return name === sq || nid === sq || id === sq
+        })
+        setClients(exact)
+      } else {
+        setClients(list || [])
+      }
+    } catch (e: any) {
+      const msg = e?.message || "Failed to load clients"
+      setError(msg)
+      toast({ title: "Error", description: msg })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let mounted = true
-      ; (async () => {
-        try {
-          setLoading(true)
-          // Try server-side filtered endpoint first
-          try {
-            const path = q
-              ? `/api/clients?search=${encodeURIComponent(q)}&limit=1000`
-              : `/api/clients?limit=1000`
-            const data: any = await apiGet(path)
-            const list: ClientItem[] = Array.isArray(data) ? data : (data?.data || [])
-            if (q) {
-              const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase()
-              const sq = normalize(q)
-              const exact = (list || []).filter((c) => {
-                if (!c) return false
-                const name = (c.name || "") && normalize(c.name || "")
-                const nid = (c.nationalId || "").toLowerCase().trim()
-                const id = (c._id || "").toLowerCase().trim()
-                return name === sq || nid === sq || id === sq
-              })
-              if (mounted) setClients(exact)
-            } else {
-              if (mounted) setClients(list || [])
-            }
-            return
-          } catch {
-            // fallback to fetching all clients then client-side filter
-          }
-          const allRaw = await apiGet<any>("/api/clients?limit=1000")
-          const all: ClientItem[] = Array.isArray(allRaw) ? allRaw : (allRaw?.data || [])
-          if (q) {
-            const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase()
-            const sq = normalize(q)
-            const exact = (all || []).filter((c) => {
-              if (!c) return false
-              const name = (c.name || "") && normalize(c.name || "")
-              const nid = (c.nationalId || "").toLowerCase().trim()
-              const id = (c._id || "").toLowerCase().trim()
-              return name === sq || nid === sq || id === sq
-            })
-            if (mounted) setClients(exact || [])
-          } else {
-            if (mounted) setClients(all || [])
-          }
-        } catch (e: any) {
-          const msg = e?.message || "Failed to load clients"
-          if (mounted) setError(msg)
-          toast({ title: "Error", description: msg })
-        } finally {
-          if (mounted) setLoading(false)
-        }
-      })()
-    return () => {
-      mounted = false
-    }
-  }, [toast, q])
+    fetchClients()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q])
 
   const fetchClientHistory = async (clientId: string) => {
     try {
@@ -135,48 +130,32 @@ function ClientsView() {
       // Helper to extract the actual data from potential wrappers
       const unwrap = (obj: any): any => (obj && obj.data ? unwrap(obj.data) : obj)
 
-      try {
-        const raw = await apiGet<any>(`/api/clients/${clientId}/history`)
-        const data = raw?.data || raw
-
-        // If the return is { client: { ... }, loans: [...] }
-        if (data && data.client) {
-          // ensure the inner client is also unwrapped
-          const normalizedClient = unwrap(data.client)
-          setClientHistory({
-            ...data,
-            client: normalizedClient,
-            loans: unwrap(data.loans) || [],
-            repayments: unwrap(data.repayments) || [],
-            savingsHistory: unwrap(data.savingsHistory || data.savings) || []
-          })
-          return
-        }
-
-        // If the return is flat client data
-        if (data && (data.name || data.nationalId)) {
-          setClientHistory({
-            client: data,
-            loans: unwrap(data.loans) || [],
-            repayments: unwrap(data.repayments) || [],
-            savingsHistory: unwrap(data.savingsHistory || data.savings) || []
-          })
-          return
-        }
-
-        // If it's a generic success wrapper
-        setClientHistory(data)
-        return
-      } catch {
-        // fallback
-      }
-
+      // Try to fetch client detail with all populated fields
       const rawDetail = await apiGet<any>(`/api/clients/${clientId}`)
+      console.log("Raw client detail response:", rawDetail)
+      
       const detail = unwrap(rawDetail)
-      // Some APIs might return { client: { ... } } even in detail endpoint
-      const finalClient = detail?.client ? unwrap(detail.client) : detail
-      setClientHistory({ client: finalClient })
+      console.log("Unwrapped client detail:", detail)
+      
+      // Handle different response structures
+      let clientData = detail
+      
+      // If wrapped in a client property
+      if (detail?.client) {
+        clientData = unwrap(detail.client)
+      }
+      
+      console.log("Final client data:", clientData)
+      
+      // Set the client history with the fetched data
+      setClientHistory({
+        client: clientData,
+        loans: unwrap(detail?.loans || clientData?.loans) || [],
+        repayments: unwrap(detail?.repayments || clientData?.repayments) || [],
+        savingsHistory: unwrap(detail?.savingsHistory || detail?.savings || clientData?.savingsHistory || clientData?.savings) || []
+      })
     } catch (e: any) {
+      console.error("Failed to fetch client details:", e)
       toast({ title: "Error", description: e?.message || "Failed to load client details" })
     } finally {
       setHistoryLoading(false)
@@ -313,6 +292,14 @@ function ClientsView() {
                         <Button variant="ghost" size="sm" onClick={() => handleViewClient(client._id)}>
                           View
                         </Button>
+                        {canEdit && (
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            setClientToEdit(client)
+                            setIsEditDialogOpen(true)
+                          }}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        )}
                         {canApprove && client.status === "pending" && (
                           <Button variant="default" size="sm" onClick={() => handleApproveClient(client._id)} className="bg-green-600 hover:bg-green-700">
                             Approve
@@ -441,8 +428,14 @@ function ClientsView() {
                     <p className="font-semibold break-words">{clientHistory?.client?.phone || "—"}</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs">Residence</p>
-                    <p className="font-semibold capitalize">{clientHistory?.client?.residence || "—"}</p>
+                    <p className="text-muted-foreground text-xs">Status</p>
+                    <Badge variant="outline" className="capitalize">
+                      {clientHistory?.client?.status || "active"}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground text-xs">Residence Type</p>
+                    <p className="font-semibold capitalize">{clientHistory?.client?.residenceType || clientHistory?.client?.residence || "—"}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-muted-foreground text-xs">Business Type</p>
@@ -453,14 +446,98 @@ function ClientsView() {
                     <p className="font-semibold">{clientHistory?.client?.businessLocation || "—"}</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs">Group</p>
-                    <p className="font-semibold">{clientHistory?.client?.groupId?.name || "—"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs">Savings Balance</p>
-                    <p className="font-semibold text-primary">KES {((clientHistory?.client?.savings_balance_cents || 0) / 100).toLocaleString()}</p>
+                    <p className="text-muted-foreground text-xs">Registration Date</p>
+                    <p className="font-semibold">
+                      {clientHistory?.client?.registrationDate 
+                        ? new Date(clientHistory.client.registrationDate).toLocaleDateString()
+                        : clientHistory?.client?.createdAt
+                        ? new Date(clientHistory.client.createdAt).toLocaleDateString()
+                        : "—"}
+                    </p>
                   </div>
                 </div>
+
+                {/* Assignment Details */}
+                <div className="mt-4 pt-4 border-t border-border">
+                  <h4 className="text-xs font-semibold mb-3 text-muted-foreground">ASSIGNMENT</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground text-xs">Branch</p>
+                      <p className="font-semibold">
+                        {clientHistory?.client?.branchId?.name || "—"}
+                        {clientHistory?.client?.branchId?.location && (
+                          <span className="text-muted-foreground text-xs ml-1">({clientHistory.client.branchId.location})</span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground text-xs">Loan Officer</p>
+                      <p className="font-semibold">
+                        {clientHistory?.client?.loanOfficer?.username || clientHistory?.client?.loanOfficer?.name || "—"}
+                        {clientHistory?.client?.loanOfficer?.email && (
+                          <span className="text-muted-foreground text-xs block">{clientHistory.client.loanOfficer.email}</span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground text-xs">Group</p>
+                      <p className="font-semibold">
+                        {clientHistory?.client?.groupId?.name || "—"}
+                        {clientHistory?.client?.groupId?.meetingDay && (
+                          <span className="text-muted-foreground text-xs block">
+                            {clientHistory.client.groupId.meetingDay} {clientHistory.client.groupId.meetingTime}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground text-xs">Savings Balance</p>
+                      <p className="font-semibold text-primary">KES {((clientHistory?.client?.savings_balance_cents || 0) / 100).toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Registration Fees */}
+                {(clientHistory?.client?.registrationFeePaid !== undefined || clientHistory?.client?.initialSavingsPaid !== undefined) && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <h4 className="text-xs font-semibold mb-3 text-muted-foreground">REGISTRATION</h4>
+                    <div className="flex gap-4 text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${
+                          clientHistory?.client?.registrationFeePaid ? "bg-green-500" : "bg-gray-300"
+                        }`} />
+                        <span>Registration Fee</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${
+                          clientHistory?.client?.initialSavingsPaid ? "bg-green-500" : "bg-gray-300"
+                        }`} />
+                        <span>Initial Savings</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Created/Approved By */}
+                {(clientHistory?.client?.createdBy || clientHistory?.client?.approvedBy) && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <h4 className="text-xs font-semibold mb-3 text-muted-foreground">AUDIT TRAIL</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      {clientHistory?.client?.createdBy && (
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground">Created By</p>
+                          <p className="font-semibold">{clientHistory.client.createdBy.username || "—"}</p>
+                        </div>
+                      )}
+                      {clientHistory?.client?.approvedBy && (
+                        <div className="space-y-1">
+                          <p className="text-muted-foreground">Approved By</p>
+                          <p className="font-semibold">{clientHistory.client.approvedBy.username || "—"}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {clientHistory?.client?.nextOfKin && (
                   <div className="mt-4 p-2.5 sm:p-3 rounded-lg bg-card border border-border">
                     <p className="text-xs font-semibold mb-3 text-secondary">NEXT OF KIN</p>
@@ -474,7 +551,22 @@ function ClientsView() {
               </div>
 
               <div className="mt-4 flex gap-3">
-                {user?.role && ["super_admin", "approver_admin"].includes(user.role) && (
+                {/* Edit button for authorized users */}
+                {canEdit && (
+                  <Button
+                    onClick={() => {
+                      setClientToEdit(clientHistory?.client)
+                      setIsEditDialogOpen(true)
+                    }}
+                    variant="outline"
+                    className="flex-1 gap-2 neumorphic neumorphic-hover border-0"
+                  >
+                    <Edit className="w-4 h-4" />
+                    Edit Details
+                  </Button>
+                )}
+                {/* Only admins can adjust savings (operational task) */}
+                {user?.role && ["approver_admin", "initiator_admin"].includes(user.role) && (
                   <Button
                     onClick={() => setIsSavingsDialogOpen(true)}
                     className="flex-1 gap-2 bg-primary text-white neumorphic neumorphic-hover border-0"
@@ -593,6 +685,15 @@ function ClientsView() {
         clientName={clientHistory?.client?.name || ""}
         currentBalanceCents={clientHistory?.client?.savings_balance_cents || 0}
         onSuccess={() => {
+          if (selectedClientId) fetchClientHistory(selectedClientId)
+        }}
+      />
+      <EditClientDialog
+        isOpen={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        client={clientToEdit || clientHistory?.client}
+        onSuccess={() => {
+          fetchClients()
           if (selectedClientId) fetchClientHistory(selectedClientId)
         }}
       />

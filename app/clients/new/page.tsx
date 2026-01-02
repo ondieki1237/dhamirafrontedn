@@ -21,7 +21,8 @@ import { useToast } from "@/hooks/use-toast"
 export default function NewClientPage() {
   const router = useRouter()
   const { toast } = useToast()
-  const [groups, setGroups] = useState<{ _id: string; name: string }[]>([])
+  const [groups, setGroups] = useState<{ _id: string; name: string; branchId?: string }[]>([])
+  const [branches, setBranches] = useState<{ _id: string; name: string }[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [form, setForm] = useState({
@@ -34,6 +35,7 @@ export default function NewClientPage() {
     nextOfKinName: "",
     nextOfKinPhone: "",
     nextOfKinRelationship: "",
+    branchId: "",
     groupId: "",
     photo: null as File | null,
   })
@@ -43,10 +45,15 @@ export default function NewClientPage() {
     let mounted = true
       ; (async () => {
         try {
-          const data = await apiGet<{ _id: string; name: string }[]>("/api/groups")
-          if (mounted) setGroups(data)
+          // Fetch branches
+          const branchesData = await apiGet<{ _id: string; name: string }[]>("/api/branches")
+          if (mounted) setBranches(Array.isArray(branchesData) ? branchesData : branchesData?.data || [])
+
+          // Fetch groups
+          const groupsData = await apiGet<{ _id: string; name: string; branchId?: string }[]>("/api/groups")
+          if (mounted) setGroups(Array.isArray(groupsData) ? groupsData : groupsData?.data || [])
         } catch (e) {
-          // optional; groups select can remain empty
+          // optional; can remain empty
         }
       })()
 
@@ -66,6 +73,17 @@ export default function NewClientPage() {
         toast({ title: "Not allowed", description: "You do not have permission to onboard clients." })
         return
       }
+
+      // Validate mandatory fields
+      if (!form.branchId) {
+        toast({ title: "Missing Information", description: "Branch is required. Please select a branch.", variant: "destructive" })
+        return
+      }
+      if (!form.groupId) {
+        toast({ title: "Missing Information", description: "Group is required. Please select a group.", variant: "destructive" })
+        return
+      }
+
       setSubmitting(true)
       const fd = new FormData()
       Object.entries(form).forEach(([k, v]) => {
@@ -136,7 +154,45 @@ export default function NewClientPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Branch *</label>
+                <select
+                  value={form.branchId}
+                  onChange={(e) => {
+                    setForm({ ...form, branchId: e.target.value, groupId: "" })
+                  }}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
+                  required
+                >
+                  <option value="">Select branch (required)</option>
+                  {branches.map((b) => (
+                    <option key={b._id} value={b._id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Group *</label>
+                <select
+                  value={form.groupId}
+                  onChange={(e) => setForm({ ...form, groupId: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
+                  required
+                  disabled={!form.branchId}
+                >
+                  <option value="">Select group (required)</option>
+                  {groups
+                    .filter(g => !form.branchId || g.branchId === form.branchId)
+                    .map((g) => (
+                    <option key={g._id} value={g._id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+                {!form.branchId && <p className="text-xs text-muted-foreground mt-1">Select a branch first</p>}
+              </div>
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Residence *</label>
                 <select
@@ -146,21 +202,6 @@ export default function NewClientPage() {
                 >
                   <option value="owned">Owned</option>
                   <option value="rented">Rented</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Group</label>
-                <select
-                  value={form.groupId}
-                  onChange={(e) => setForm({ ...form, groupId: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
-                >
-                  <option value="">Select group (optional)</option>
-                  {groups.map((g) => (
-                    <option key={g._id} value={g._id}>
-                      {g.name}
-                    </option>
-                  ))}
                 </select>
               </div>
             </div>

@@ -178,6 +178,16 @@ export default function LoanDetailPage() {
   }, [loanId])
 
   const handleApproveLoan = async () => {
+    // Permission check: Only initiator_admin and approver_admin can approve
+    if (!user?.role || !["initiator_admin", "approver_admin"].includes(user.role)) {
+      toast({ 
+        title: "Access Denied", 
+        description: "Only Admins (Initiator/Approver) can approve loans.",
+        variant: "destructive" 
+      })
+      return
+    }
+
     if (!window.confirm("Approve this loan?")) return
     try {
       setActionLoading(true)
@@ -192,6 +202,16 @@ export default function LoanDetailPage() {
   }
 
   const handleDisburseLoan = async () => {
+    // Permission check: Only initiator_admin and approver_admin can disburse
+    if (!user?.role || !["initiator_admin", "approver_admin"].includes(user.role)) {
+      toast({ 
+        title: "Access Denied", 
+        description: "Only Admins (Initiator/Approver) can disburse loans.",
+        variant: "destructive" 
+      })
+      return
+    }
+
     if (!window.confirm("Disburse this loan? This action is final.")) return
     try {
       setActionLoading(true)
@@ -229,6 +249,13 @@ export default function LoanDetailPage() {
   let { actions } = data
 
   const canMarkFee = user?.role && ["super_admin", "approver_admin", "initiator_admin"].includes(user.role)
+  const canApprove = user?.role && ["initiator_admin", "approver_admin"].includes(user.role)
+  const canDisburse = user?.role && ["initiator_admin", "approver_admin"].includes(user.role)
+
+  // Filter out operational actions for super_admin (they manage system, not operations)
+  if (user?.role === "super_admin") {
+    actions = actions.filter(a => !["approve", "disburse", "initiate"].includes(a.key))
+  }
 
   // Manually inject mark-application-fee-paid if missing but authorized and state is initiated AND NOT PAID
   if (loan.status === "initiated" && canMarkFee && !loan.applicationFeePaid) {
@@ -245,6 +272,13 @@ export default function LoanDetailPage() {
       actions = [{ key: "credit-assessment", label: "Perform Credit Assessment" }, ...actions]
     }
   }
+
+  // Filter approve/disburse actions based on role
+  actions = actions.filter(a => {
+    if (a.key === "approve" && !canApprove) return false
+    if (a.key === "disburse" && !canDisburse) return false
+    return true
+  })
 
   const clientName = typeof loan.client === "string"
     ? loan.client

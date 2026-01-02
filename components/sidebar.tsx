@@ -16,6 +16,10 @@ import {
   History,
   ClipboardList,
   X,
+  Shield,
+  UserPlus,
+  MapPin,
+  Activity,
 } from "lucide-react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
@@ -33,11 +37,12 @@ interface SidebarProps {
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", route: "/dashboard" },
-  { icon: DollarSign, label: "Loans", route: "/loans" },
+  { icon: Activity, label: "Performance", route: "/loan-officer/dashboard", roles: ["loan_officer"] },
+  { icon: DollarSign, label: "Loans", route: "/loans", roles: ["super_admin", "initiator_admin", "approver_admin"] },
   { icon: UserCircle, label: "Clients", route: "/clients" },
   { icon: Users, label: "Groups", route: "/groups" },
   { icon: DollarSign, label: "Savings", route: "/savings" },
-  { icon: FileCheck, label: "Disbursements", route: "/loans/disburse", roles: ["super_admin", "approver_admin"] },
+  { icon: FileCheck, label: "Disbursements", route: "/loans/disburse", roles: ["approver_admin", "initiator_admin"] },
   { icon: UserCircle, label: "Loan Officers", route: "/loan-officers", roles: ["super_admin"] },
   { icon: FileText, label: "Credit Assessments", route: "/credit-assessments" },
   { icon: TrendingUp, label: "Repayments", route: "/repayments" },
@@ -46,6 +51,9 @@ const menuItems = [
   { icon: BarChart3, label: "Analytics", route: "/analytics", roles: ["super_admin"] },
   { icon: FileCheck, label: "Audit Logs", route: "/audit-logs", roles: ["super_admin"] },
   { icon: Terminal, label: "System Logs", route: "/system-logs", roles: ["super_admin"] },
+  { icon: Shield, label: "Create Admin", route: "/admin/create-admin", roles: ["super_admin"] },
+  { icon: UserPlus, label: "Create Officer", route: "/admin/create-loan-officer", roles: ["super_admin"] },
+  { icon: MapPin, label: "Branches", route: "/branches", roles: ["super_admin"] },
   { icon: Settings, label: "Settings", route: "/settings" },
 ]
 

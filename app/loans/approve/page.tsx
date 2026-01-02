@@ -28,11 +28,12 @@ export default function ApproveLoanPage() {
   const [loading, setLoading] = useState(true)
   const user = getCurrentUser()
 
-  const canApprove = user?.role && ["approver_admin", "super_admin"].includes(user.role)
+  // Only admins can approve loans (checker role in maker-checker model)
+  const canApprove = user?.role && ["approver_admin", "initiator_admin"].includes(user.role)
 
   useEffect(() => {
     if (!canApprove) {
-      toast({ title: "Access Denied", description: "Only approver admins can access this page" })
+      toast({ title: "Access Denied", description: "Only admins can approve loans" })
       router.push("/loans")
       return
     }

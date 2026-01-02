@@ -34,11 +34,12 @@ export default function DisburseLoanPage() {
     const [disbursing, setDisbursing] = useState<string | null>(null)
     const user = getCurrentUser()
 
-    const canDisburse = user?.role && ["approver_admin", "super_admin"].includes(user.role)
+    // Only admins can disburse loans (checker role in maker-checker model)
+    const canDisburse = user?.role && ["approver_admin", "initiator_admin"].includes(user.role)
 
     useEffect(() => {
         if (!canDisburse) {
-            toast({ title: "Access Denied", description: "Only authorized admins can access this page", variant: "destructive" })
+            toast({ title: "Access Denied", description: "Only admins can disburse loans", variant: "destructive" })
             router.push("/loans")
             return
         }

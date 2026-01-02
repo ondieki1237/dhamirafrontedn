@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
-import { apiGet } from "@/lib/api"
+import { apiGet, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
 type LoanPendingAssessment = {
@@ -32,8 +32,18 @@ export default function CreditAssessmentsPage() {
   const { toast } = useToast()
   const [loans, setLoans] = useState<LoanPendingAssessment[]>([])
   const [loading, setLoading] = useState(true)
+  const user = getCurrentUser()
+
+  // Only admins can perform credit assessments (part of approval process)
+  const canAccess = user?.role && ["initiator_admin", "approver_admin"].includes(user.role)
 
   useEffect(() => {
+    if (!canAccess) {
+      toast({ title: "Access Denied", description: "Only admins can perform credit assessments" })
+      router.push("/dashboard")
+      return
+    }
+
     let mounted = true
       ; (async () => {
         try {
@@ -55,6 +65,7 @@ export default function CreditAssessmentsPage() {
     return () => {
       mounted = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast])
 
   return (
