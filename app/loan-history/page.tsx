@@ -119,7 +119,7 @@ export default function LoanHistoryPage() {
     }
     
     // Accessible by super_admin and admins for reporting and oversight
-    if (!["super_admin", "initiator_admin", "approver_admin"].includes(userData.role || "")) {
+    if (!["admin", "super_admin", "initiator_admin", "approver_admin"].includes(userData.role || "")) {
       toast({
         title: "Access Denied",
         description: "Only administrators can view loan history.",

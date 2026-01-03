@@ -34,8 +34,8 @@ export default function DisburseLoanPage() {
     const [disbursing, setDisbursing] = useState<string | null>(null)
     const user = getCurrentUser()
 
-    // Only admins can disburse loans (checker role in maker-checker model)
-    const canDisburse = user?.role && ["approver_admin", "initiator_admin"].includes(user.role)
+    // Admins can disburse loans (checker role in maker-checker model)
+    const canDisburse = user?.role && ["admin", "approver_admin", "initiator_admin"].includes(user.role)
 
     useEffect(() => {
         if (!canDisburse) {

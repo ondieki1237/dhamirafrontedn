@@ -28,8 +28,8 @@ export default function ApproveLoanPage() {
   const [loading, setLoading] = useState(true)
   const user = getCurrentUser()
 
-  // Only admins can approve loans (checker role in maker-checker model)
-  const canApprove = user?.role && ["approver_admin", "initiator_admin"].includes(user.role)
+  // Admins can approve loans (checker role in maker-checker model)
+  const canApprove = user?.role && ["admin", "approver_admin", "initiator_admin"].includes(user.role)
 
   useEffect(() => {
     if (!canApprove) {

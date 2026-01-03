@@ -22,14 +22,14 @@ const actions: Action[] = [
     label: "Add Savings",
     color: "bg-blue-600",
     route: "/savings",
-    roles: ["approver_admin", "initiator_admin"], // Admins manage savings
+    roles: ["admin", "approver_admin", "initiator_admin"], // Admins manage savings
   },
   {
     icon: DollarSign,
     label: "Initiate Loan",
     color: "bg-primary",
     route: "/loans/initiate",
-    roles: ["loan_officer"], // Only loan officers initiate loans (maker role)
+    roles: ["admin", "loan_officer"], // Admins and loan officers initiate loans
   },
   {
     icon: Users,
@@ -43,14 +43,14 @@ const actions: Action[] = [
     label: "Approve Loan",
     color: "bg-primary",
     route: "/loans/approve",
-    roles: ["approver_admin", "initiator_admin"], // Only admins approve (checker role)
+    roles: ["admin", "approver_admin", "initiator_admin"], // Admins approve (checker role)
   },
   {
     icon: DollarSign,
     label: "Disburse Loan",
     color: "bg-green-600",
     route: "/loans/disburse",
-    roles: ["approver_admin", "initiator_admin"], // Only admins disburse (checker role)
+    roles: ["admin", "approver_admin", "initiator_admin"], // Admins disburse (checker role)
   },
 ]
 

@@ -34,8 +34,8 @@ export default function CreditAssessmentsPage() {
   const [loading, setLoading] = useState(true)
   const user = getCurrentUser()
 
-  // Only admins can perform credit assessments (part of approval process)
-  const canAccess = user?.role && ["initiator_admin", "approver_admin"].includes(user.role)
+  // Admins can perform credit assessments (part of approval process)
+  const canAccess = user?.role && ["admin", "initiator_admin", "approver_admin"].includes(user.role)
 
   useEffect(() => {
     if (!canAccess) {

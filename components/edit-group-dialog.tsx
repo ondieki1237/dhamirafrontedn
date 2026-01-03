@@ -38,7 +38,7 @@ export function EditGroupDialog({
     treasurer: ""
   })
 
-  const isAdmin = user?.role && ["super_admin", "initiator_admin", "approver_admin"].includes(user.role)
+  const isAdmin = user?.role && ["admin", "super_admin", "initiator_admin", "approver_admin"].includes(user.role)
   const canEditStructural = isAdmin
 
   useEffect(() => {
