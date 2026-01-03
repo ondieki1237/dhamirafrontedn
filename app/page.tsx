@@ -10,14 +10,6 @@ import Image from "next/image"
 
 const administrators = [
   {
-    name: "Super Administrator",
-    roles: ["super_admin"],
-    description: "Complete system access with full administrative privileges including user management, system configuration, and access to all features",
-    icon: Shield,
-    color: "text-primary",
-    bgColor: "bg-primary/10",
-  },
-  {
     name: "Loan Administrator",
     roles: ["initiator_admin", "approver_admin"],
     description: "Manages the complete loan lifecycle - initiates applications, reviews credit assessments, approves loans, and processes disbursements",

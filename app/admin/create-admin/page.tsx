@@ -408,7 +408,6 @@ const handleDelete = async (id: string, name: string) => {
                   className="px-4 py-2 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
                 >
                   <option value="all">All Roles</option>
-                  <option value="super_admin">Super Admin</option>
                   <option value="initiator_admin">Initiator Admin</option>
                   <option value="approver_admin">Approver Admin</option>
                 </select>
