@@ -44,9 +44,12 @@ export default function ApproveLoanPage() {
   const fetchLoans = async () => {
     try {
       setLoading(true)
-      const data = await apiGet<Loan[]>("/api/loans")
-      // Filter for loans that are in "initiated" or "approved" status
-      const pendingLoans = data.filter((loan) => loan.status === "initiated" || loan.status === "approved")
+      // Request populated initiatedBy field for maker-checker validation
+      const data = await apiGet<any>("/api/loans?populate=initiatedBy,client")
+      const loansList = Array.isArray(data) ? data : (data?.data || [])
+      // Filter for loans that are in "initiated" status (pending approval)
+      const pendingLoans = loansList.filter((loan: any) => loan.status === "initiated")
+      console.log("Loans pending approval:", pendingLoans)
       setLoans(pendingLoans)
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load loans" })
@@ -57,9 +60,23 @@ export default function ApproveLoanPage() {
 
   const handleApprove = async (loanId: string) => {
     const target = loans.find((l) => l._id === loanId) as any
-    const initiatorId = target?.initiatedBy?._id || target?.initiatedBy?.id || target?.initiatedBy || target?.createdBy || target?.createdById
+    
+    // Extract initiator ID from various possible fields
+    const initiatorId = target?.initiatedBy?._id 
+      || target?.initiatedBy?.id 
+      || target?.initiatedBy 
+      || target?.createdBy?._id 
+      || target?.createdBy
+    
+    console.log("Approval check - Current user:", user?._id, "Initiator:", initiatorId)
+    
+    // Maker-checker: Cannot approve your own loan
     if (user?._id && initiatorId && user._id === initiatorId) {
-      toast({ title: "Not allowed", description: "You initiated this loan and cannot approve it." })
+      toast({ 
+        title: "Maker-Checker Violation", 
+        description: "You cannot approve a loan you initiated. Another admin must approve it.",
+        variant: "destructive"
+      })
       return
     }
 
@@ -75,9 +92,23 @@ export default function ApproveLoanPage() {
 
   const handleReject = async (loanId: string) => {
     const target = loans.find((l) => l._id === loanId) as any
-    const initiatorId = target?.initiatedBy?._id || target?.initiatedBy?.id || target?.initiatedBy || target?.createdBy || target?.createdById
+    
+    // Extract initiator ID from various possible fields
+    const initiatorId = target?.initiatedBy?._id 
+      || target?.initiatedBy?.id 
+      || target?.initiatedBy 
+      || target?.createdBy?._id 
+      || target?.createdBy
+    
+    console.log("Rejection check - Current user:", user?._id, "Initiator:", initiatorId)
+    
+    // Maker-checker: Cannot reject your own loan
     if (user?._id && initiatorId && user._id === initiatorId) {
-      toast({ title: "Not allowed", description: "You initiated this loan and cannot reject it." })
+      toast({ 
+        title: "Maker-Checker Violation", 
+        description: "You cannot reject a loan you initiated. Another admin must review it.",
+        variant: "destructive"
+      })
       return
     }
 

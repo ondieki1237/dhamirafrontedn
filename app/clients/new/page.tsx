@@ -55,8 +55,13 @@ export default function NewClientPage() {
           if (mounted) setBranches(branchList)
 
           // Fetch groups
-          const groupsData = await apiGet<{ _id: string; name: string; branchId?: string }[]>("/api/groups")
-          if (mounted) setGroups(Array.isArray(groupsData) ? groupsData : groupsData?.data || [])
+          const groupsData = await apiGet<any>("/api/groups")
+          console.log("Groups response:", groupsData)
+          const groupList = Array.isArray(groupsData) 
+            ? groupsData 
+            : (groupsData?.data || groupsData?.groups || [])
+          console.log("Groups list:", groupList)
+          if (mounted) setGroups(groupList)
         } catch (e) {
           console.error("Error fetching branches/groups:", e)
         }
@@ -97,7 +102,23 @@ export default function NewClientPage() {
       })
       if (form.photo) fd.append("photo", form.photo)
 
-      const res = await apiPostFormData<{ message: string }>("/api/clients/onboard", fd)
+      console.log("Client form data being sent:")
+      for (let [key, value] of fd.entries()) {
+        console.log(`  ${key}:`, value)
+      }
+
+      // Try /api/clients first, fallback to /api/clients/onboard
+      let res
+      try {
+        res = await apiPostFormData<{ message: string }>("/api/clients", fd)
+      } catch (e: any) {
+        if (e?.message?.includes("Cannot POST")) {
+          console.log("Trying fallback endpoint /api/clients/onboard")
+          res = await apiPostFormData<{ message: string }>("/api/clients/onboard", fd)
+        } else {
+          throw e
+        }
+      }
       toast({ title: "Success", description: res?.message || "Client onboarded successfully" })
       setShowSuccess(true)
     } catch (e: any) {
@@ -189,7 +210,14 @@ export default function NewClientPage() {
                 >
                   <option value="">Select group (required)</option>
                   {groups
-                    .filter(g => !form.branchId || g.branchId === form.branchId)
+                    .filter(g => {
+                      if (!form.branchId) return true // Show all if no branch selected
+                      // Handle both string and object branchId
+                      const groupBranchId = typeof g.branchId === 'string' ? g.branchId : (g.branchId as any)?._id
+                      const match = groupBranchId === form.branchId
+                      console.log(`Group ${g.name}: branchId=${groupBranchId}, form.branchId=${form.branchId}, match=${match}`)
+                      return match
+                    })
                     .map((g) => (
                     <option key={g._id} value={g._id}>
                       {g.name}
@@ -197,6 +225,12 @@ export default function NewClientPage() {
                   ))}
                 </select>
                 {!form.branchId && <p className="text-xs text-muted-foreground mt-1">Select a branch first</p>}
+                {form.branchId && groups.filter(g => {
+                  const groupBranchId = typeof g.branchId === 'string' ? g.branchId : (g.branchId as any)?._id
+                  return groupBranchId === form.branchId
+                }).length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">No groups available for this branch</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Residence *</label>

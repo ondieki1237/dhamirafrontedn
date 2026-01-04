@@ -24,6 +24,7 @@ type Group = {
   branchId?: string | { _id: string; name?: string; code?: string }
   loanOfficer?: string | { _id: string; username?: string; name?: string }
   loanOfficerId?: string | { _id: string; username?: string; name?: string }
+  createdBy?: string | { _id: string; username?: string; name?: string }
   chairperson?: string | { _id: string; name?: string; nationalId?: string }
   secretary?: string | { _id: string; name?: string; nationalId?: string }
   treasurer?: string | { _id: string; name?: string; nationalId?: string }
@@ -57,9 +58,14 @@ export default function GroupDetailPage() {
   const [selectedMember, setSelectedMember] = useState<ClientItem | null>(null)
   const [savingsHistory, setSavingsHistory] = useState<any[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false)
+  const [availableClients, setAvailableClients] = useState<ClientItem[]>([])
+  const [selectedClientId, setSelectedClientId] = useState("")
+  const [addingMember, setAddingMember] = useState(false)
 
   const user = getCurrentUser()
   const canApprove = user?.role && ["super_admin", "approver_admin"].includes(user.role)
+  const canAddMembers = user?.role && ["loan_officer", "super_admin"].includes(user.role)
 
   const fetchGroup = async () => {
     try {
@@ -67,9 +73,9 @@ export default function GroupDetailPage() {
       // Prefer detail endpoint; fallback to list if not available
       let raw: any = null
       try {
-        raw = await apiGet<any>(`/api/groups/${groupId}`)
+        raw = await apiGet<any>(`/api/groups/${groupId}?populate=loanOfficer,createdBy,loanOfficerId`)
       } catch {
-        const listRaw = await apiGet<any>(`/api/groups`)
+        const listRaw = await apiGet<any>(`/api/groups?populate=loanOfficer,createdBy,loanOfficerId`)
         const list = Array.isArray(listRaw) ? listRaw : listRaw?.data || listRaw?.items || []
         raw = list.find((g: any) => g._id === groupId) || null
       }
@@ -79,11 +85,75 @@ export default function GroupDetailPage() {
         router.push("/groups")
         return
       }
+      
+      // If loanOfficer fields are still IDs, try to fetch the user details
+      const officerField = data.loanOfficer || data.loanOfficerId || data.createdBy
+      if (officerField && typeof officerField === "string") {
+        try {
+          const userRaw = await apiGet<any>(`/api/loan-officers/${officerField}`)
+          const userData = userRaw?.data || userRaw
+          if (userData?.name) {
+            // Update the group data with populated officer info
+            if (data.loanOfficer === officerField) data.loanOfficer = userData
+            else if (data.loanOfficerId === officerField) data.loanOfficerId = userData
+            else if (data.createdBy === officerField) data.createdBy = userData
+          }
+        } catch {
+          // If that fails, try the users endpoint
+          try {
+            const userRaw = await apiGet<any>(`/api/users/${officerField}`)
+            const userData = userRaw?.data || userRaw
+            if (userData?.name) {
+              if (data.loanOfficer === officerField) data.loanOfficer = userData
+              else if (data.loanOfficerId === officerField) data.loanOfficerId = userData
+              else if (data.createdBy === officerField) data.createdBy = userData
+            }
+          } catch {
+            // Silent fail - will show ID if we can't get the name
+          }
+        }
+      }
+      
       setGroup(data)
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load group" })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchAvailableClients = async () => {
+    try {
+      const raw = await apiGet<any>('/api/clients?limit=1000')
+      const list = Array.isArray(raw) ? raw : (raw?.data || [])
+      // Filter out clients already in this group
+      const available = list.filter((c: ClientItem) => {
+        const clientGroupId = typeof c.groupId === 'string' ? c.groupId : c.groupId?._id
+        return !clientGroupId || clientGroupId !== groupId
+      })
+      setAvailableClients(available)
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to load clients" })
+    }
+  }
+
+  const handleAddMember = async () => {
+    if (!selectedClientId) {
+      toast({ title: "Error", description: "Please select a client", variant: "destructive" })
+      return
+    }
+    try {
+      setAddingMember(true)
+      await apiPutJson(`/api/clients/${selectedClientId}`, { groupId })
+      toast({ title: "Success", description: "Member added to group successfully" })
+      setIsAddMemberDialogOpen(false)
+      setSelectedClientId("")
+      fetchMembers()
+      fetchAvailableClients()
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to add member to group" })
+    } finally {
+      setAddingMember(false)
     }
   }
 
@@ -155,7 +225,15 @@ export default function GroupDetailPage() {
     )
   }
 
-  const officerName = typeof group.loanOfficerId === "string" ? group.loanOfficerId : (group.loanOfficerId?.name || group.loanOfficerId?.username || group.loanOfficerId?._id || "—")
+  // Extract officer name from loanOfficer, loanOfficerId, or createdBy fields
+  const getOfficerName = () => {
+    // Try loanOfficer first
+    const officer = group.loanOfficer || group.loanOfficerId || group.createdBy
+    if (!officer) return "—"
+    if (typeof officer === "string") return officer
+    return officer.name || officer.username || officer._id || "—"
+  }
+  const officerName = getOfficerName()
 
   return (
     <DashboardLayout>
@@ -171,6 +249,20 @@ export default function GroupDetailPage() {
               <p className="text-muted-foreground mt-1">Group Details & Signatories</p>
             </div>
             <div className="flex items-center gap-3">
+              {canAddMembers && (
+                <Button
+                  onClick={() => {
+                    fetchAvailableClients()
+                    setIsAddMemberDialogOpen(true)
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="px-3 py-2 gap-2"
+                >
+                  <User className="w-4 h-4" />
+                  Add Members
+                </Button>
+              )}
               {canApprove && (
                 <Button
                   onClick={() => setIsEditDialogOpen(true)}
@@ -302,11 +394,11 @@ export default function GroupDetailPage() {
           </div>
         </Card>
 
-        {(membersLoading ? [] : members).length > 0 && (
+        {!membersLoading && members.length > 0 && (
           <Card className="neumorphic p-6 bg-card border-0">
-            <h2 className="text-xl font-bold mb-4">Members</h2>
+            <h2 className="text-xl font-bold mb-4">Members ({members.length})</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {(members.length > 0 ? members : (group.members || [])).map((m, idx) => (
+              {members.map((m, idx) => (
                 <div 
                   key={(m._id as string) || idx} 
                   className="p-4 rounded-xl bg-muted/30 flex justify-between items-center hover:bg-muted/50 cursor-pointer transition-colors"
@@ -453,6 +545,58 @@ export default function GroupDetailPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Members Dialog */}
+      <Dialog open={isAddMemberDialogOpen} onOpenChange={setIsAddMemberDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-0 neumorphic">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="w-5 h-5 text-primary" />
+              Add Member to Group
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-2">Select Client</label>
+              <select
+                value={selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+                className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-secondary transition-all text-sm"
+              >
+                <option value="">Choose a client...</option>
+                {availableClients.map((client) => (
+                  <option key={client._id} value={client._id}>
+                    {client.name} - {client.nationalId}
+                  </option>
+                ))}
+              </select>
+              {availableClients.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-2">No available clients. All clients are already assigned to groups.</p>
+              )}
+            </div>
+
+            <div className="flex gap-3 justify-end pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsAddMemberDialogOpen(false)
+                  setSelectedClientId("")
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddMember}
+                disabled={!selectedClientId || addingMember}
+                className="bg-primary text-white"
+              >
+                {addingMember ? "Adding..." : "Add Member"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

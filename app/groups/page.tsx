@@ -42,9 +42,9 @@ export default function GroupsPage() {
   // Only loan officers can create groups (maker role)
   const canCreate = user?.role && ["loan_officer"].includes(user.role)
   // Only admins can approve groups (checker role)
-  const canApprove = user?.role && ["initiator_admin", "approver_admin"].includes(user.role)
+  const canApprove = user?.role && ["admin", "initiator_admin", "approver_admin"].includes(user.role)
   // Admins and accountants can edit groups
-  const canEdit = user?.role && ["initiator_admin", "approver_admin", "super_admin", "accountant"].includes(user.role)
+  const canEdit = user?.role && ["admin", "initiator_admin", "approver_admin", "super_admin", "accountant"].includes(user.role)
 
   useEffect(() => {
     let mounted = true
@@ -176,7 +176,7 @@ export default function GroupsPage() {
                   </Button>
                 )}
               </div>
-              {canApprove && group.status === "provisional" && (
+              {canApprove && (group.status === "provisional" || group.status === "pending") && (
                 <Button
                   variant="default"
                   className="w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm py-2 sm:py-3"

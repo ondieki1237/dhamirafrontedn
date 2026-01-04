@@ -101,16 +101,22 @@ export default function NewGroupPage() {
         meetingTime: form.meetingTime,
         loanOfficerId: form.loanOfficerId,
         branchId: form.branchId,
+        chairperson: form.chairperson,
+        secretary: form.secretary,
+        treasurer: form.treasurer,
         signatories: [
           { role: "chairperson", clientId: form.chairperson },
           { role: "secretary", clientId: form.secretary },
           { role: "treasurer", clientId: form.treasurer },
         ],
       }
-      await apiPostJson("/api/groups", payload)
+      console.log("Creating group with payload:", payload)
+      const response = await apiPostJson("/api/groups", payload)
+      console.log("Group creation response:", response)
       toast({ title: "Group created", description: "Group created successfully and awaiting approval." })
       router.push("/groups")
     } catch (e: any) {
+      console.error("Group creation error:", e)
       toast({ title: "Error", description: e?.message || "Failed to create group" })
     }
   }

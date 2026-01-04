@@ -46,7 +46,7 @@ export default function LoansPage() {
   }, [])
 
   // Only admins can initiate loans (not super_admin or loan officers)
-  const canInitiate = userRole && ["initiator_admin", "approver_admin"].includes(userRole)
+  const canInitiate = userRole && ["admin", "initiator_admin", "approver_admin"].includes(userRole)
   // Admins can perform bulk actions (checker role)
   const canBulkAction = userRole && ["admin", "initiator_admin", "approver_admin"].includes(userRole)
 

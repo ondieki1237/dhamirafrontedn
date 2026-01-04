@@ -83,9 +83,9 @@ function ClientsView() {
   // Only loan officers can onboard new clients (maker role)
   const canOnboard = user?.role && ["loan_officer"].includes(user.role)
   // Only admins can approve client profiles (checker role)
-  const canApprove = user?.role && ["initiator_admin", "approver_admin"].includes(user.role)
+  const canApprove = user?.role && ["admin", "initiator_admin", "approver_admin"].includes(user.role)
   // Admins and accountants can edit clients
-  const canEdit = user?.role && ["initiator_admin", "approver_admin", "super_admin", "accountant"].includes(user.role)
+  const canEdit = user?.role && ["admin", "initiator_admin", "approver_admin", "super_admin", "accountant"].includes(user.role)
 
   const fetchClients = async () => {
     try {

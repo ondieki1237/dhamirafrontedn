@@ -19,7 +19,7 @@ export default function DashboardPage() {
     const user = getCurrentUser()
     setRole(user?.role || null)
   }, [])
-  const canInitiate = role && ["initiator_admin", "approver_admin"].includes(role)
+  const canInitiate = role && ["admin", "initiator_admin", "approver_admin"].includes(role)
 
   return (
     <DashboardLayout>
@@ -31,13 +31,19 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Mobile: Quick Actions after welcome, Desktop: hidden here */}
+        <div className="lg:hidden">
+          <QuickActions />
+        </div>
+
         <DashboardStats />
 
+        {/* Desktop: Recent Loans on left, Quick Actions on right */}
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <RecentLoans />
           </div>
-          <div>
+          <div className="hidden lg:block">
             <QuickActions />
           </div>
         </div>

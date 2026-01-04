@@ -19,6 +19,13 @@ const actions: Action[] = [
   },
   {
     icon: DollarSign,
+    label: "Create Loan",
+    color: "bg-primary",
+    route: "/loans/initiate",
+    roles: ["admin", "initiator_admin", "approver_admin"], // Admins create loans
+  },
+  {
+    icon: DollarSign,
     label: "Add Savings",
     color: "bg-blue-600",
     route: "/savings",
