@@ -120,8 +120,8 @@ function InitiateLoanPageContent() {
   const canInitiate = useMemo(() => {
     if (!userRole) return false;
     const roleLower = userRole.toLowerCase();
-    // Only loan_officer can initiate loans (maker-checker model)
-    return roleLower === "loan_officer";
+    // Loan officers and admins can initiate loans
+    return ["loan_officer", "admin", "initiator_admin", "approver_admin"].includes(roleLower);
   }, [userRole]);
 
   const selectedClient = useMemo(() => {
@@ -334,16 +334,15 @@ function InitiateLoanPageContent() {
               </div>
             </div>
 
+            {!isFafaLoan && (
             <div className="space-y-4 pt-4 border-t border-border">
               <div className="flex items-center justify-between">
                 <div>
                   <label className="block text-xs sm:text-sm font-semibold text-foreground">Guarantors</label>
                   <p className="text-[10px] text-muted-foreground italic">
-                    {isFafaLoan 
-                      ? "Not required for FAFA loans" 
-                      : form.groupId 
-                        ? "Optional for group loans" 
-                        : "At least 3 required for individual Business loans"}
+                    {form.groupId 
+                      ? "Optional for group loans" 
+                      : "At least 3 required for individual Business loans"}
                   </p>
                 </div>
                 <Button
@@ -445,6 +444,7 @@ function InitiateLoanPageContent() {
                 ))}
               </div>
             </div>
+            )}
 
             <div>
               <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Purpose</label>

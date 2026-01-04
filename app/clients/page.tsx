@@ -388,7 +388,7 @@ function ClientsView() {
             <DialogTitle className="flex items-center justify-between text-lg sm:text-xl">
               <span>Client Details</span>
               <div className="flex items-center gap-2">
-                {user?.role && ["initiator_admin", "approver_admin"].includes(user.role) && (
+                {user?.role && ["admin", "initiator_admin", "approver_admin"].includes(user.role) && (
                   <Button
                     size="sm"
                     onClick={() => {
