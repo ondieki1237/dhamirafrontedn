@@ -206,7 +206,7 @@ export default function RepaymentsPage() {
               <li>Go to M-Pesa menu on your phone</li>
               <li>Select "Lipa na M-Pesa" → "Paybill"</li>
               <li>Enter Business Number: <span className="font-mono font-bold text-primary">600000</span></li>
-              <li>Enter Account Number: <span className="font-semibold text-foreground">Your Loan ID</span></li>
+              <li>Enter Account Number: <span className="font-semibold text-foreground">National ID</span></li>
               <li>Enter Amount</li>
               <li>Enter your M-Pesa PIN and confirm</li>
             </ol>

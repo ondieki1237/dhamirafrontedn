@@ -89,7 +89,20 @@ export default function LoansPage() {
         })
       )
       
-      setLoans(loansWithClientNames)
+      // Maker-Checker: Filter out loans initiated by current admin
+      const currentUser = getCurrentUser()
+      let filteredLoans = loansWithClientNames
+      
+      if (currentUser?.role && ["initiator_admin", "approver_admin", "admin"].includes(currentUser.role)) {
+        filteredLoans = loansWithClientNames.filter((loan: any) => {
+          const initiatorId = typeof loan.initiatedBy === 'object' ? loan.initiatedBy?._id : loan.initiatedBy
+          // Only show loans NOT initiated by the current admin
+          return initiatorId !== currentUser._id
+        })
+        console.log(`Maker-Checker: Filtered ${loansWithClientNames.length - filteredLoans.length} loans initiated by current admin`)
+      }
+      
+      setLoans(filteredLoans)
     } catch (e: any) {
       const msg = e?.message || "Failed to load loans"
       setError(msg)

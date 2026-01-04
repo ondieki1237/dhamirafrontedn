@@ -159,8 +159,11 @@ export default function LoanDetailPage() {
             (res as any).creditAssessment = assessmentRes
             console.log("Loan Details: Found existing credit assessment manually.")
           }
-        } catch (e) {
-          console.error("Failed to fetch assessment manually", e)
+        } catch (e: any) {
+          // Silently handle missing assessment - it's normal for loans that haven't been assessed yet
+          if (!e?.message?.includes("not found")) {
+            console.error("Failed to fetch assessment manually", e)
+          }
         }
       }
 
@@ -186,6 +189,19 @@ export default function LoanDetailPage() {
         variant: "destructive" 
       })
       return
+    }
+
+    // Maker-Checker: Prevent admin from approving their own initiated loan
+    if (data?.loan?.initiatedBy) {
+      const initiatorId = typeof data.loan.initiatedBy === 'object' ? data.loan.initiatedBy._id : data.loan.initiatedBy
+      if (initiatorId === user._id) {
+        toast({ 
+          title: "Maker-Checker Violation", 
+          description: "You cannot approve a loan you initiated. Another admin must approve it.",
+          variant: "destructive" 
+        })
+        return
+      }
     }
 
     if (!window.confirm("Approve this loan?")) return
@@ -280,9 +296,14 @@ export default function LoanDetailPage() {
     return true
   })
 
-  const clientName = typeof loan.client === "string"
-    ? loan.client
-    : (loan.client?.name || (loan as any).clientName || "—")
+  // Extract client name from various possible structures
+  const clientName = 
+    (typeof loan.client === "object" && loan.client?.name) ||
+    (typeof (loan as any).clientId === "object" && (loan as any).clientId?.name) ||
+    (typeof loan.client === "string" ? loan.client : "") ||
+    (loan as any).clientName ||
+    (loan as any).client_name ||
+    "Unknown Client"
 
   const loanAmount = (loan as any).amountKES || loan.amount || (loan as any).principal_cents / 100 || (loan as any).loanAmount || 0
   const loanType = loan.type || (loan as any).loanType || "—"
@@ -374,10 +395,6 @@ export default function LoanDetailPage() {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                <div>
-                  <p className="text-sm text-muted-foreground">Loan ID</p>
-                  <p className="font-mono font-semibold text-xs truncate" title={loan._id}>{loan._id}</p>
-                </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Client</p>
                   <p className="font-semibold">{clientName}</p>

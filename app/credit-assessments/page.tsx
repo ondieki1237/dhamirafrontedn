@@ -49,10 +49,21 @@ export default function CreditAssessmentsPage() {
         try {
           setLoading(true)
           const response = await apiGet<any>("/api/loans?status=initiated")
-          const loansList = Array.isArray(response) ? response : (response?.data || [])
+          let loansList = Array.isArray(response) ? response : (response?.data || [])
 
           // Filter out loans that already have a credit assessment
-          const pendingLoans = loansList.filter((loan: any) => !loan.creditAssessment)
+          let pendingLoans = loansList.filter((loan: any) => !loan.creditAssessment)
+          
+          // Maker-Checker: Filter out loans initiated/registered by current admin
+          if (user?._id) {
+            pendingLoans = pendingLoans.filter((loan: any) => {
+              const initiatorId = typeof loan.initiatedBy === 'object' ? loan.initiatedBy?._id : loan.initiatedBy
+              const registeredById = typeof loan.registeredBy === 'object' ? loan.registeredBy?._id : loan.registeredBy
+              // Exclude loans created by current admin
+              return initiatorId !== user._id && registeredById !== user._id
+            })
+            console.log(`Credit Assessment: Filtered out loans initiated by current admin`)
+          }
 
           if (mounted) setLoans(pendingLoans)
         } catch (e: any) {

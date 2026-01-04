@@ -104,6 +104,10 @@ export default function CreditAssessmentPage() {
             try {
               const staffRaw = await apiGet<any>("/api/loan-officers")
               const staffList = Array.isArray(staffRaw) ? staffRaw : (staffRaw?.data || staffRaw?.officers || [])
+              
+              // Debug: Log the raw staff data to see structure
+              console.log("Raw staff data:", staffList.length > 0 ? staffList[0] : "empty")
+              
               if (mounted) setStaff(staffList)
             } catch (e) {
               console.error("Failed to fetch staff list from /api/loan-officers, trying analytics fallback", e)
@@ -131,7 +135,23 @@ export default function CreditAssessmentPage() {
                 const client = clientRes?.data || clientRes
                 setPreviousAssessments(Array.isArray(assessmentsRes) ? assessmentsRes : assessmentsRes?.data || [])
 
-                const initOfficer = loanData.initiatedBy || "Internal System"
+                let initOfficer = loanData.initiatedBy || "Internal System"
+                
+                // If initiatedBy is just an ID string, try to find the name from staff list
+                if (typeof initOfficer === 'string' && initOfficer !== "Internal System") {
+                  const staffRaw = await apiGet<any>("/api/loan-officers").catch(() => ({ data: [] }))
+                  const staffList = Array.isArray(staffRaw) ? staffRaw : (staffRaw?.data || staffRaw?.officers || [])
+                  const matchedOfficer = staffList.find((s: any) => 
+                    (s._id === initOfficer || s.id === initOfficer || s.userId === initOfficer)
+                  )
+                  if (matchedOfficer) {
+                    initOfficer = { _id: initOfficer, name: matchedOfficer.name || matchedOfficer.username }
+                    console.log("Matched officer from staff list:", matchedOfficer.name)
+                  } else {
+                    console.warn("Could not find officer in staff list for ID:", initOfficer)
+                  }
+                }
+                
                 setClientStats(prev => ({
                   ...prev,
                   totalSavings: client?.savingsBalance || 0,
@@ -289,21 +309,39 @@ export default function CreditAssessmentPage() {
                 </div>
                 <div className="flex-1">
                   <p className="text-[10px] text-muted-foreground">Loan Officer</p>
-                  {staff.length > 0 ? (
+                  <p className="text-sm font-bold truncate">
+                    {(() => {
+                      const officer = clientStats.officer
+                      if (typeof officer === 'object' && officer?.name) {
+                        return officer.name
+                      } else if (typeof officer === 'object' && officer?.username) {
+                        return officer.username
+                      } else if (typeof officer === 'string' && officer !== 'Internal System') {
+                        return officer
+                      } else if (selectedOfficerId && staff.length > 0) {
+                        const selected = staff.find((s: any) => (s.id || s._id) === selectedOfficerId)
+                        return selected?.name || "—"
+                      }
+                      return "—"
+                    })()}
+                  </p>
+                  {staff.length > 0 && (
                     <select
                       value={selectedOfficerId}
                       onChange={(e) => setSelectedOfficerId(e.target.value)}
-                      className="text-sm font-bold bg-transparent border-0 focus:ring-0 p-0 w-full"
+                      className="text-xs text-muted-foreground bg-transparent border-0 focus:ring-0 p-0 w-full mt-1"
                     >
-                      <option value="">Select Officer...</option>
-                      {staff.map((s: any) => (
-                        <option key={s.id || s._id} value={s.id || s._id}>{s.name}</option>
-                      ))}
+                      <option value="">Change officer...</option>
+                      {staff.map((s: any) => {
+                        const officerId = s._id || s.id || s.userId
+                        const officerName = s.name || s.username || s.email || "Unknown Officer"
+                        return (
+                          <option key={officerId} value={officerId}>
+                            {officerName}
+                          </option>
+                        )
+                      })}
                     </select>
-                  ) : (
-                    <p className="text-sm font-bold truncate">
-                      {typeof clientStats.officer === 'object' ? clientStats.officer.name : clientStats.officer || "—"}
-                    </p>
                   )}
                 </div>
               </div>
@@ -336,9 +374,13 @@ export default function CreditAssessmentPage() {
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground">Guarantors</p>
-                  <p className={`text-sm font-bold ${clientStats.guarantors.length < 3 ? 'text-red-500' : ''}`}>
-                    {clientStats.guarantors.length} Verified (Min 3)
-                  </p>
+                  {loan && (loan as any).product?.toLowerCase() === 'fafa' ? (
+                    <p className="text-sm font-bold text-green-600">N/A (FAFA Loan)</p>
+                  ) : (
+                    <p className={`text-sm font-bold ${clientStats.guarantors.length < 3 ? 'text-red-500' : ''}`}>
+                      {clientStats.guarantors.length} Verified (Min 3)
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

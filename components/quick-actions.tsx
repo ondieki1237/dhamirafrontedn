@@ -25,13 +25,6 @@ const actions: Action[] = [
     roles: ["admin", "initiator_admin", "approver_admin"], // Admins create loans
   },
   {
-    icon: DollarSign,
-    label: "Add Savings",
-    color: "bg-blue-600",
-    route: "/savings",
-    roles: ["admin", "approver_admin", "initiator_admin"], // Admins manage savings
-  },
-  {
     icon: Users,
     label: "Create Group",
     color: "bg-secondary",
