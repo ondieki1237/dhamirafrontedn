@@ -11,7 +11,8 @@ import { apiGet, apiPutJson, getCurrentUser } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { SavingsAdjustmentDialog } from "@/components/savings-adjustment-dialog"
 import { EditGroupDialog } from "@/components/edit-group-dialog"
-import { History, PlusCircle, Edit } from "lucide-react"
+import { History, PlusCircle, Edit, User, Phone, Mail, MapPin, CreditCard, Calendar } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 // Types kept loose to be resilient to backend changes
 type Group = {
@@ -52,6 +53,8 @@ export default function GroupDetailPage() {
   const [isSavingsDialogOpen, setIsSavingsDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [targetClient, setTargetClient] = useState<{ id: string, name: string, balance: number } | null>(null)
+  const [isMemberDialogOpen, setIsMemberDialogOpen] = useState(false)
+  const [selectedMember, setSelectedMember] = useState<ClientItem | null>(null)
   const [savingsHistory, setSavingsHistory] = useState<any[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
 
@@ -179,13 +182,6 @@ export default function GroupDetailPage() {
                   Edit Group
                 </Button>
               )}
-              <Button
-                onClick={() => router.push(`/loans/initiate?groupId=${group._id}`)}
-                size="sm"
-                className="px-3 py-2"
-              >
-                Initiate Group Loan
-              </Button>
               {canApprove && (
                 <Button
                   onClick={() => router.push(`/savings`)}
@@ -311,16 +307,27 @@ export default function GroupDetailPage() {
             <h2 className="text-xl font-bold mb-4">Members</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {(members.length > 0 ? members : (group.members || [])).map((m, idx) => (
-                <div key={(m._id as string) || idx} className="p-4 rounded-xl bg-muted/30 flex justify-between items-center">
+                <div 
+                  key={(m._id as string) || idx} 
+                  className="p-4 rounded-xl bg-muted/30 flex justify-between items-center hover:bg-muted/50 cursor-pointer transition-colors"
+                  onClick={() => {
+                    setSelectedMember(m)
+                    setIsMemberDialogOpen(true)
+                  }}
+                >
                   <div>
                     <p className="font-semibold">{m.name || "—"}</p>
                     <p className="text-sm text-muted-foreground">ID: {m.nationalId || "—"}</p>
+                    <p className="text-xs text-primary mt-1">
+                      Savings: KES {((m.savings_balance_cents || 0) / 100).toLocaleString()}
+                    </p>
                   </div>
                   {canApprove && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation()
                         setTargetClient({ id: m._id, name: m.name || 'Member', balance: m.savings_balance_cents || 0 })
                         setIsSavingsDialogOpen(true)
                       }}
@@ -354,6 +361,100 @@ export default function GroupDetailPage() {
           fetchGroup()
           fetchMembers()
         }}
-      />    </DashboardLayout>
+      />
+      
+      {/* Member Details Dialog */}
+      <Dialog open={isMemberDialogOpen} onOpenChange={setIsMemberDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-0 neumorphic">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="w-5 h-5 text-primary" />
+              Member Details
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedMember && (
+            <div className="space-y-4">
+              <div className="text-center pb-4 border-b border-border">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                  <User className="w-10 h-10 text-primary" />
+                </div>
+                <h3 className="text-xl font-bold">{selectedMember.name}</h3>
+                <p className="text-sm text-muted-foreground">{selectedMember.nationalId}</p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <CreditCard className="w-4 h-4 text-primary mt-1" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">National ID</p>
+                    <p className="font-semibold">{selectedMember.nationalId || "—"}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <DollarSign className="w-4 h-4 text-primary mt-1" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Savings Balance</p>
+                    <p className="font-semibold text-green-600">
+                      KES {((selectedMember.savings_balance_cents || 0) / 100).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+
+                {(selectedMember as any).phone && (
+                  <div className="flex items-start gap-3">
+                    <Phone className="w-4 h-4 text-primary mt-1" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Phone</p>
+                      <p className="font-semibold">{(selectedMember as any).phone}</p>
+                    </div>
+                  </div>
+                )}
+
+                {(selectedMember as any).email && (
+                  <div className="flex items-start gap-3">
+                    <Mail className="w-4 h-4 text-primary mt-1" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Email</p>
+                      <p className="font-semibold">{(selectedMember as any).email}</p>
+                    </div>
+                  </div>
+                )}
+
+                {(selectedMember as any).residence && (
+                  <div className="flex items-start gap-3">
+                    <MapPin className="w-4 h-4 text-primary mt-1" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Residence</p>
+                      <p className="font-semibold">{(selectedMember as any).residence}</p>
+                    </div>
+                  </div>
+                )}
+
+                {(selectedMember as any).businessType && (
+                  <div className="flex items-start gap-3">
+                    <Calendar className="w-4 h-4 text-primary mt-1" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Business Type</p>
+                      <p className="font-semibold">{(selectedMember as any).businessType}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4">
+                <Button 
+                  onClick={() => router.push(`/clients?q=${selectedMember.nationalId}`)}
+                  className="w-full"
+                >
+                  View Full Profile
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </DashboardLayout>
   )
 }

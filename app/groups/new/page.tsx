@@ -43,12 +43,17 @@ export default function NewGroupPage() {
     ; (async () => {
       try {
         const branchesData = await apiGet<any>("/api/branches")
-        setBranches(Array.isArray(branchesData) ? branchesData : branchesData?.data || [])
+        console.log("Branches response:", branchesData)
+        const branchList = Array.isArray(branchesData) 
+          ? branchesData 
+          : (branchesData?.data || branchesData?.branches || [])
+        console.log("Branch list:", branchList)
+        setBranches(branchList)
 
         const clientsData = await apiGet<any>("/api/clients?limit=1000")
         setClients(Array.isArray(clientsData) ? clientsData : clientsData?.data || [])
       } catch (e) {
-        // optional
+        console.error("Error fetching branches/clients:", e)
       }
     })()
   }, [])

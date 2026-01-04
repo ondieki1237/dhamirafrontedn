@@ -46,14 +46,19 @@ export default function NewClientPage() {
       ; (async () => {
         try {
           // Fetch branches
-          const branchesData = await apiGet<{ _id: string; name: string }[]>("/api/branches")
-          if (mounted) setBranches(Array.isArray(branchesData) ? branchesData : branchesData?.data || [])
+          const branchesData = await apiGet<any>("/api/branches")
+          console.log("Branches response:", branchesData)
+          const branchList = Array.isArray(branchesData) 
+            ? branchesData 
+            : (branchesData?.data || branchesData?.branches || [])
+          console.log("Branch list:", branchList)
+          if (mounted) setBranches(branchList)
 
           // Fetch groups
           const groupsData = await apiGet<{ _id: string; name: string; branchId?: string }[]>("/api/groups")
           if (mounted) setGroups(Array.isArray(groupsData) ? groupsData : groupsData?.data || [])
         } catch (e) {
-          // optional; can remain empty
+          console.error("Error fetching branches/groups:", e)
         }
       })()
 

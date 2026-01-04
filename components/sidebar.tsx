@@ -36,8 +36,7 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", route: "/dashboard", roles: ["super_admin", "initiator_admin", "approver_admin", "loan_officer"] },
-  { icon: Activity, label: "Performance", route: "/loan-officer/dashboard", roles: ["loan_officer"] },
+  { icon: LayoutDashboard, label: "Dashboard", route: "/dashboard", roles: ["super_admin", "initiator_admin", "approver_admin"] },
   { icon: DollarSign, label: "Loans", route: "/loans", roles: ["super_admin", "initiator_admin", "approver_admin", "loan_officer"] },
   { icon: UserCircle, label: "Clients", route: "/clients", roles: ["super_admin", "initiator_admin", "approver_admin", "loan_officer"] },
   { icon: Users, label: "Groups", route: "/groups", roles: ["super_admin", "initiator_admin", "approver_admin", "loan_officer"] },

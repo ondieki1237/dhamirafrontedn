@@ -43,10 +43,12 @@ export default function LoanOfficersPage() {
     const fetchBranches = async () => {
         try {
             const data = await apiGet<any>("/api/branches")
-            const list = Array.isArray(data) ? data : (data?.data || [])
+            console.log("Branches response:", data)
+            const list = Array.isArray(data) ? data : (data?.data || data?.branches || [])
+            console.log("Branch list:", list)
             setBranches(list)
         } catch (e: any) {
-            console.warn("Failed to load branches:", e)
+            console.error("Failed to load branches:", e)
         }
     }
 

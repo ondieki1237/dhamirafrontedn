@@ -388,18 +388,20 @@ function ClientsView() {
             <DialogTitle className="flex items-center justify-between text-lg sm:text-xl">
               <span>Client Details</span>
               <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    if (clientHistory?.client?.nationalId) {
-                      router.push(`/loans/initiate?clientNationalId=${clientHistory.client.nationalId}`)
-                      setSelectedClientId(null)
-                    }
-                  }}
-                  className="h-8"
-                >
-                  Create Loan
-                </Button>
+                {user?.role && ["initiator_admin", "approver_admin"].includes(user.role) && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (clientHistory?.client?.nationalId) {
+                        router.push(`/loans/initiate?clientNationalId=${clientHistory.client.nationalId}`)
+                        setSelectedClientId(null)
+                      }
+                    }}
+                    className="h-8"
+                  >
+                    Create Loan
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={() => setSelectedClientId(null)} className="h-8 w-8">
                   <X className="w-4 h-4" />
                 </Button>

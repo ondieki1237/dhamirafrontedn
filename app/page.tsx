@@ -38,8 +38,18 @@ export default function LandingPage() {
   useEffect(() => {
     // Check if already logged in
     const token = localStorage.getItem("token")
-    if (token) {
-      router.push("/dashboard")
+    const userStr = localStorage.getItem("user")
+    if (token && userStr) {
+      try {
+        const user = JSON.parse(userStr)
+        if (user.role === "loan_officer") {
+          router.push("/groups")
+        } else {
+          router.push("/dashboard")
+        }
+      } catch {
+        router.push("/dashboard")
+      }
     } else {
       setChecking(false)
     }
@@ -74,7 +84,12 @@ export default function LandingPage() {
         }),
       )
 
-      router.push("/dashboard")
+      // Redirect based on role
+      if (data.role === "loan_officer") {
+        router.push("/groups")
+      } else {
+        router.push("/dashboard")
+      }
     } catch (err: any) {
       setError(err.message || "Invalid credentials. Please try again.")
     } finally {

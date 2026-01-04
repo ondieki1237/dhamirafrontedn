@@ -45,8 +45,8 @@ export default function LoansPage() {
     setUserRole(user?.role || null)
   }, [])
 
-  // Only admins can initiate loans (loan officers cannot create loans)
-  const canInitiate = userRole && ["admin", "initiator_admin", "approver_admin"].includes(userRole)
+  // Only admins can initiate loans (not super_admin or loan officers)
+  const canInitiate = userRole && ["initiator_admin", "approver_admin"].includes(userRole)
   // Admins can perform bulk actions (checker role)
   const canBulkAction = userRole && ["admin", "initiator_admin", "approver_admin"].includes(userRole)
 
@@ -187,17 +187,6 @@ export default function LoansPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">All Loans</h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">Manage and track all loan applications</p>
           </div>
-          {canInitiate && (
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={() => router.push("/loans/initiate")}
-                className="gap-2 bg-primary text-white neumorphic neumorphic-hover border-0 w-full sm:w-auto text-sm sm:text-base"
-              >
-                <Plus className="w-4 h-4" />
-                New Loan
-              </Button>
-            </div>
-          )}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center">
