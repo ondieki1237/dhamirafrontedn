@@ -216,7 +216,13 @@ const handleDelete = async (id: string, name: string) => {
   }
 
   const getBranchName = (branchId: any) => {
-    if (typeof branchId === "string") return branchId
+    if (typeof branchId === "string") {
+      // If it's a MongoDB ID (24 character hex string), show "Unknown Branch"
+      if (/^[0-9a-fA-F]{24}$/.test(branchId)) {
+        return "Unknown Branch"
+      }
+      return branchId
+    }
     return branchId?.name || "N/A"
   }
 

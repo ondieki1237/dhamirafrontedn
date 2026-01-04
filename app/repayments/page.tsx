@@ -13,9 +13,15 @@ import { useToast } from "@/hooks/use-toast"
 type LoanItem = {
   _id: string
   client?: { name?: string } | string
+  clientId?: { name?: string; _id?: string }
   clientName?: string
   type: string
   amount: number
+  product?: string
+  createdAt?: string
+  balance?: number
+  outstandingBalance?: number
+  status?: string
 }
 
 type Repayment = {
@@ -45,8 +51,8 @@ export default function RepaymentsPage() {
     setUserRole(u?.role || null)
   }, [])
 
-  // Only admins can record repayments (operational task)
-  const canRecord = userRole && ["initiator_admin", "approver_admin"].includes(userRole)
+  // Admins and accountants can record repayments (operational task)
+  const canRecord = userRole && ["initiator_admin", "approver_admin", "accountant"].includes(userRole)
 
   function normalizeHistoryPayload(payload: any): Repayment[] {
     if (!payload) return []
@@ -60,7 +66,21 @@ export default function RepaymentsPage() {
         try {
           setLoadingLoans(true)
           const raw = await apiGet<any>("/api/loans")
-          const normalized = Array.isArray(raw) ? raw : (raw?.data || [])
+          let normalized = Array.isArray(raw) ? raw : (raw?.data || [])
+          
+          // Filter loans for loan officers - show only their assigned users
+          const currentUser = getCurrentUser()
+          if (currentUser?.role === "loan_officer") {
+            // Filter to show only loans where the client's loanOfficer matches current user
+            normalized = normalized.filter((loan: any) => {
+              const loanOfficerId = loan.clientId?.loanOfficer?._id || 
+                                   loan.clientId?.loanOfficer || 
+                                   loan.groupId?.loanOfficerId?._id || 
+                                   loan.groupId?.loanOfficerId
+              return loanOfficerId === currentUser._id
+            })
+          }
+          
           if (mounted) setLoans(normalized)
         } catch (e: any) {
           toast({ title: "Error", description: e?.message || "Failed to load loans" })
@@ -73,8 +93,24 @@ export default function RepaymentsPage() {
     }
   }, [toast])
 
-  const groupLoans = useMemo(() => loans.filter((l) => (l.type || "").toLowerCase() === "group"), [loans])
-  const individualLoans = useMemo(() => loans.filter((l) => (l.type || "").toLowerCase() !== "group"), [loans])
+  const groupLoans = useMemo(() => {
+    return loans.filter((l) => {
+      const isGroup = (l.type || "").toLowerCase() === "group"
+      const balance = l.balance ?? l.outstandingBalance ?? 0
+      const isSettled = l.status === "settled" || l.status === "closed" || balance <= 0
+      return isGroup && !isSettled
+    })
+  }, [loans])
+  
+  const individualLoans = useMemo(() => {
+    return loans.filter((l) => {
+      const isGroup = (l.type || "").toLowerCase() === "group"
+      const balance = l.balance ?? l.outstandingBalance ?? 0
+      const isSettled = l.status === "settled" || l.status === "closed" || balance <= 0
+      return !isGroup && !isSettled
+    })
+  }, [loans])
+  
   const visibleLoans = tab === "group" ? groupLoans : individualLoans
 
   useEffect(() => {
@@ -119,17 +155,21 @@ export default function RepaymentsPage() {
     }
     try {
       setSubmitting(true)
+      
+      // Generate unique transaction ID if not provided to avoid duplicate key errors
+      const transactionId = form.transactionId || `MAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      
       console.log("Payload:", {
         loanId: selectedLoanId,
         amount: amountNum,
         paymentMethod: form.paymentMethod,
-        transactionId: form.transactionId || undefined,
+        transactionId,
       })
       await apiPostJson("/api/repayments", {
         loanId: selectedLoanId,
         amount: amountNum,
         paymentMethod: form.paymentMethod,
-        transactionId: form.transactionId || undefined,
+        transactionId,
       })
       toast({ title: "Repayment recorded" })
       // Refresh history
@@ -201,12 +241,21 @@ export default function RepaymentsPage() {
                 onChange={(e) => setSelectedLoanId(e.target.value)}
                 className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
               >
-                <option value="">{loadingLoans ? "Loading loans…" : visibleLoans.length ? "Choose a loan" : "No loans found"}</option>
+                <option value="">{loadingLoans ? "Loading loans…" : visibleLoans.length ? "Choose a loan" : "No active loans found"}</option>
                 {visibleLoans.map((l) => {
-                  const clientName = typeof l.client === "string" ? l.client : l.client?.name || l.clientName || "—"
+                  // Extract client name from various possible structures
+                  const clientName = 
+                    (typeof l.client === "object" && l.client?.name) || 
+                    (typeof l.clientId === "object" && l.clientId?.name) ||
+                    (typeof l.client === "string" ? l.client : "") ||
+                    l.clientName || 
+                    "Unknown Client"
+                  const loanDate = l.createdAt ? new Date(l.createdAt).toLocaleDateString() : "N/A"
+                  const loanType = l.product ? l.product.toUpperCase() : (l.type ? l.type.toUpperCase() : "BUSINESS")
+                  const balance = l.balance ?? l.outstandingBalance ?? l.amount
                   return (
                     <option key={l._id} value={l._id}>
-                      {clientName} — KES {Number(l.amount || 0).toLocaleString()} ({l._id})
+                      {clientName} — {loanType} — Balance: KES {Number(balance).toLocaleString()} — {loanDate}
                     </option>
                   )
                 })}

@@ -45,8 +45,8 @@ export default function LoansPage() {
     setUserRole(user?.role || null)
   }, [])
 
-  // Loan officers and admins can initiate loans (maker role)
-  const canInitiate = userRole && ["loan_officer", "admin", "initiator_admin", "approver_admin"].includes(userRole)
+  // Only admins can initiate loans (loan officers cannot create loans)
+  const canInitiate = userRole && ["admin", "initiator_admin", "approver_admin"].includes(userRole)
   // Admins can perform bulk actions (checker role)
   const canBulkAction = userRole && ["admin", "initiator_admin", "approver_admin"].includes(userRole)
 
@@ -55,7 +55,41 @@ export default function LoansPage() {
       setLoading(true)
       const raw = await apiGet<any>("/api/loans")
       const normalized = Array.isArray(raw) ? raw : (raw?.data || [])
-      setLoans(normalized)
+      
+      // Debug: Log first loan to see structure
+      if (normalized.length > 0) {
+        console.log("Sample loan data:", normalized[0])
+      }
+      
+      // Fetch client names for loans that don't have them populated
+      const loansWithClientNames = await Promise.all(
+        normalized.map(async (loan: any) => {
+          // If client name is already populated, return as is
+          if (loan.client?.name || loan.clientName) {
+            return loan
+          }
+          
+          // Try to fetch client details if we have a clientId
+          const clientId = loan.clientId?._id || loan.clientId
+          if (clientId && typeof clientId === "string") {
+            try {
+              const client = await apiGet<any>(`/api/clients/${clientId}`)
+              return {
+                ...loan,
+                clientName: client.name || client.data?.name,
+                client: { name: client.name || client.data?.name }
+              }
+            } catch (e) {
+              console.warn(`Failed to fetch client ${clientId}:`, e)
+              return loan
+            }
+          }
+          
+          return loan
+        })
+      )
+      
+      setLoans(loansWithClientNames)
     } catch (e: any) {
       const msg = e?.message || "Failed to load loans"
       setError(msg)
@@ -153,18 +187,17 @@ export default function LoansPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground">All Loans</h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">Manage and track all loan applications</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={() => {
-                if (canInitiate) router.push("/loans/initiate")
-                else toast({ title: "Access denied", description: "You don't have permission to create loans" })
-              }}
-              className="gap-2 bg-primary text-white neumorphic neumorphic-hover border-0 w-full sm:w-auto text-sm sm:text-base"
-            >
-              <Plus className="w-4 h-4" />
-              New Loan
-            </Button>
-          </div>
+          {canInitiate && (
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => router.push("/loans/initiate")}
+                className="gap-2 bg-primary text-white neumorphic neumorphic-hover border-0 w-full sm:w-auto text-sm sm:text-base"
+              >
+                <Plus className="w-4 h-4" />
+                New Loan
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center">
@@ -220,11 +253,11 @@ export default function LoansPage() {
                           {selectedIds.size === loans.length ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                         </button>
                       </th>
-                      <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("_id")}>
-                        <div className="flex items-center">Loan ID {renderSortIcon("_id")}</div>
+                      <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("type")}>
+                        <div className="flex items-center">Loan Type {renderSortIcon("type")}</div>
                       </th>
                       <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("clientName")}>
-                        <div className="flex items-center">Client {renderSortIcon("clientName")}</div>
+                        <div className="flex items-center">Name {renderSortIcon("clientName")}</div>
                       </th>
                       <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground">Type</th>
                       <th className="text-left py-3 px-4 text-xs sm:text-sm font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => requestSort("amount")}>
@@ -241,7 +274,13 @@ export default function LoansPage() {
                     {sortedLoans.map((loan) => {
                       const clientName = typeof loan.client === "string" ? loan.client : loan.client?.name || loan.clientName || "—"
                       const created = loan.createdAt ? new Date(loan.createdAt).toISOString().slice(0, 10) : "—"
-                      const amount = (loan as any).amountKES || loan.amount || 0
+                      // Try multiple possible amount field names
+                      const amount = (loan as any).amountKES || 
+                                    loan.amount || 
+                                    (loan as any).principal || 
+                                    (loan as any).loanAmount ||
+                                    ((loan as any).amountCents ? (loan as any).amountCents / 100 : 0)
+                      const loanProduct = (loan as any).product || "Business"
                       const isSelected = selectedIds.has(loan._id)
                       return (
                         <tr key={loan._id} className={`border-b border-border hover:bg-muted/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
@@ -253,7 +292,7 @@ export default function LoansPage() {
                               {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                             </button>
                           </td>
-                          <td className="py-4 px-4 font-mono text-xs sm:text-sm">{loan._id}</td>
+                          <td className="py-4 px-4 text-xs sm:text-sm capitalize font-semibold">{loanProduct}</td>
                           <td className="py-4 px-4 font-semibold text-xs sm:text-sm">{clientName}</td>
                           <td className="py-4 px-4 text-muted-foreground capitalize text-xs sm:text-sm">{loan.type}</td>
                           <td className="py-4 px-4 font-semibold text-secondary text-xs sm:text-sm">KES {Number(amount).toLocaleString()}</td>

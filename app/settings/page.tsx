@@ -56,6 +56,7 @@ export default function SettingsPage() {
     initiator_admin: "bg-blue-100 text-blue-700 border-blue-200",
     approver_admin: "bg-green-100 text-green-700 border-green-200",
     loan_officer: "bg-orange-100 text-orange-700 border-orange-200",
+    accountant: "bg-teal-100 text-teal-700 border-teal-200",
   }
 
   return (

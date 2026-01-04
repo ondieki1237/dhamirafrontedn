@@ -40,6 +40,11 @@ function InitiateLoanPageContent() {
       { name: "", clientNationalId: "", phone: "", isMember: true, relationship: "" },
     ] as GuarantorFormItem[],
   })
+
+  // Determine if product is FAFA (weekly) or Business (monthly)
+  const isFafaLoan = form.product.toLowerCase() === "fafa"
+  const repaymentFrequency = isFafaLoan ? "weekly" : "monthly"
+  const termLabel = isFafaLoan ? "Duration (weeks)" : "Duration (months)"
   const [submitting, setSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [submissionResult, setSubmissionResult] = useState<any>(null)
@@ -184,12 +189,13 @@ function InitiateLoanPageContent() {
       const validGuarantors = form.guarantors.filter(g => g.name.trim() && g.clientNationalId.trim())
       console.log("Loan Initiation: Valid guarantors found:", validGuarantors.length)
 
-      // Individual loans (no groupId provided) require at least 3 guarantors
+      // Individual loans require at least 3 guarantors (except FAFA loans which don't need guarantors)
       const isIndividual = !payload.groupId
-      if (isIndividual && validGuarantors.length < 3) {
+      const isFafa = payload.product === "fafa"
+      if (isIndividual && !isFafa && validGuarantors.length < 3) {
         toast({
           title: "Missing Information",
-          description: `Individual loans require at least 3 guarantors. Currently valid: ${validGuarantors.length}`,
+          description: `Business loans require at least 3 guarantors. Currently valid: ${validGuarantors.length}`,
           variant: "destructive"
         })
         return
@@ -306,13 +312,13 @@ function InitiateLoanPageContent() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 pt-4 border-t border-border">
               <div>
-                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">Duration (months)</label>
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-2">{termLabel}</label>
                 <input
                   type="number"
                   value={form.term}
                   onChange={(e) => setForm({ ...form, term: e.target.value })}
                   className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm"
-                  placeholder="6"
+                  placeholder={isFafaLoan ? "4" : "6"}
                   required
                 />
               </div>
@@ -333,7 +339,11 @@ function InitiateLoanPageContent() {
                 <div>
                   <label className="block text-xs sm:text-sm font-semibold text-foreground">Guarantors</label>
                   <p className="text-[10px] text-muted-foreground italic">
-                    {form.groupId ? "Optional for group loans" : "At least 3 required for individual loans"}
+                    {isFafaLoan 
+                      ? "Not required for FAFA loans" 
+                      : form.groupId 
+                        ? "Optional for group loans" 
+                        : "At least 3 required for individual Business loans"}
                   </p>
                 </div>
                 <Button

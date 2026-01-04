@@ -14,6 +14,7 @@ export default function LoanOfficersPage() {
     const { toast } = useToast()
     const router = useRouter()
     const [officers, setOfficers] = useState<any[]>([])
+    const [branches, setBranches] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [submitting, setSubmitting] = useState(false)
     const [form, setForm] = useState({
@@ -21,6 +22,7 @@ export default function LoanOfficersPage() {
         phone: "",
         email: "",
         nationalId: "",
+        branchId: "",
     })
 
     useEffect(() => {
@@ -35,7 +37,18 @@ export default function LoanOfficersPage() {
             return
         }
         fetchOfficers()
+        fetchBranches()
     }, [])
+
+    const fetchBranches = async () => {
+        try {
+            const data = await apiGet<any>("/api/branches")
+            const list = Array.isArray(data) ? data : (data?.data || [])
+            setBranches(list)
+        } catch (e: any) {
+            console.warn("Failed to load branches:", e)
+        }
+    }
 
     const fetchOfficers = async () => {
         try {
@@ -86,7 +99,7 @@ export default function LoanOfficersPage() {
                 ),
             })
 
-            setForm({ name: "", phone: "", email: "", nationalId: "" })
+            setForm({ name: "", phone: "", email: "", nationalId: "", branchId: "" })
             fetchOfficers()
         } catch (e: any) {
             toast({ title: "Error", description: e?.message || "Failed to create officer", variant: "destructive" })
@@ -168,6 +181,22 @@ export default function LoanOfficersPage() {
                                         placeholder="ID12345678"
                                         required
                                     />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-muted-foreground uppercase">Branch</label>
+                                    <select
+                                        value={form.branchId}
+                                        onChange={(e) => setForm({ ...form, branchId: e.target.value })}
+                                        className="w-full px-4 py-3 bg-background rounded-xl border-0 neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                                        required
+                                    >
+                                        <option value="">Select Branch</option>
+                                        {branches.map((branch) => (
+                                            <option key={branch._id} value={branch._id}>
+                                                {branch.name}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <Button type="submit" disabled={submitting} className="w-full h-12 bg-primary text-white neumorphic neumorphic-hover border-0 font-bold mt-2">
                                     {submitting ? "Processing..." : "Create Account"}

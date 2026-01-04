@@ -36,25 +36,24 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", route: "/dashboard" },
+  { icon: LayoutDashboard, label: "Dashboard", route: "/dashboard", roles: ["super_admin", "initiator_admin", "approver_admin", "loan_officer"] },
   { icon: Activity, label: "Performance", route: "/loan-officer/dashboard", roles: ["loan_officer"] },
-  { icon: DollarSign, label: "Loans", route: "/loans" },
-  { icon: UserCircle, label: "Clients", route: "/clients" },
-  { icon: Users, label: "Groups", route: "/groups" },
+  { icon: DollarSign, label: "Loans", route: "/loans", roles: ["super_admin", "initiator_admin", "approver_admin", "loan_officer"] },
+  { icon: UserCircle, label: "Clients", route: "/clients", roles: ["super_admin", "initiator_admin", "approver_admin", "loan_officer"] },
+  { icon: Users, label: "Groups", route: "/groups", roles: ["super_admin", "initiator_admin", "approver_admin", "loan_officer"] },
   { icon: DollarSign, label: "Savings", route: "/savings" },
   { icon: FileCheck, label: "Disbursements", route: "/loans/disburse", roles: ["admin", "approver_admin", "initiator_admin"] },
   { icon: UserCircle, label: "Loan Officers", route: "/loan-officers", roles: ["admin", "initiator_admin", "approver_admin", "super_admin"] },
   { icon: FileText, label: "Credit Assessments", route: "/credit-assessments", roles: ["admin", "initiator_admin", "approver_admin"] },
-  { icon: TrendingUp, label: "Repayments", route: "/repayments" },
+  { icon: TrendingUp, label: "Repayments", route: "/repayments", roles: ["initiator_admin", "approver_admin", "accountant"] },
   { icon: History, label: "Loan History", route: "/loan-history", roles: ["admin", "initiator_admin", "approver_admin"] },
   { icon: ClipboardList, label: "Track My Loans", route: "/track-my-loans", roles: ["loan_officer"] },
   { icon: BarChart3, label: "Analytics", route: "/analytics", roles: ["initiator_admin", "approver_admin", "super_admin"] },
   { icon: FileCheck, label: "Audit Logs", route: "/audit-logs", roles: ["initiator_admin", "approver_admin", "super_admin"] },
   { icon: Terminal, label: "System Logs", route: "/system-logs", roles: ["super_admin"] },
   { icon: Shield, label: "Manage Admins", route: "/admin/create-admin", roles: ["super_admin"] },
-  { icon: UserPlus, label: "Create Officer", route: "/admin/create-loan-officer", roles: ["super_admin"] },
   { icon: MapPin, label: "Branches", route: "/branches", roles: ["super_admin"] },
-  { icon: Settings, label: "Settings", route: "/settings", roles: ["super_admin", "initiator_admin", "approver_admin"] },
+  { icon: Settings, label: "Settings", route: "/settings" },
 ]
 
 export function Sidebar({ collapsed, onToggle, mobileOpen = false, onMobileClose }: SidebarProps) {

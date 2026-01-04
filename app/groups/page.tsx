@@ -43,8 +43,8 @@ export default function GroupsPage() {
   const canCreate = user?.role && ["loan_officer"].includes(user.role)
   // Only admins can approve groups (checker role)
   const canApprove = user?.role && ["initiator_admin", "approver_admin"].includes(user.role)
-  // Only admins can edit groups
-  const canEdit = user?.role && ["initiator_admin", "approver_admin", "super_admin"].includes(user.role)
+  // Admins and accountants can edit groups
+  const canEdit = user?.role && ["initiator_admin", "approver_admin", "super_admin", "accountant"].includes(user.role)
 
   useEffect(() => {
     let mounted = true

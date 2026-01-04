@@ -34,6 +34,7 @@ export function SavingsAdjustmentDialog({
     })
 
     const isInitiatorOnly = user?.role === "initiator_admin"
+    // Accountants, approver_admins, and super_admins can deduct
     const canDeduct = !isInitiatorOnly
 
     const onSubmit = async (e: React.FormEvent) => {
