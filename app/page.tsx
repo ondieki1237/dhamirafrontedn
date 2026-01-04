@@ -25,6 +25,14 @@ const administrators = [
     color: "text-blue-600",
     bgColor: "bg-blue-600/10",
   },
+  {
+    name: "Accountant",
+    roles: ["accountant"],
+    description: "Financial operations - manages repayments, tracks transactions, handles disbursements, and maintains financial records",
+    icon: TrendingUp,
+    color: "text-green-600",
+    bgColor: "bg-green-600/10",
+  },
 ]
 
 export default function LandingPage() {
