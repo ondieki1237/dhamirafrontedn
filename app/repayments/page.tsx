@@ -21,6 +21,8 @@ type LoanItem = {
   createdAt?: string
   balance?: number
   outstandingBalance?: number
+  outstanding_cents?: number
+  principal_cents?: number
   status?: string
 }
 
@@ -96,7 +98,7 @@ export default function RepaymentsPage() {
   const groupLoans = useMemo(() => {
     return loans.filter((l) => {
       const isGroup = (l.type || "").toLowerCase() === "group"
-      const balance = l.balance ?? l.outstandingBalance ?? 0
+      const balance = (l.outstanding_cents ? l.outstanding_cents / 100 : 0) || l.balance || l.outstandingBalance || 0
       const isSettled = l.status === "settled" || l.status === "closed" || balance <= 0
       return isGroup && !isSettled
     })
@@ -105,7 +107,7 @@ export default function RepaymentsPage() {
   const individualLoans = useMemo(() => {
     return loans.filter((l) => {
       const isGroup = (l.type || "").toLowerCase() === "group"
-      const balance = l.balance ?? l.outstandingBalance ?? 0
+      const balance = (l.outstanding_cents ? l.outstanding_cents / 100 : 0) || l.balance || l.outstandingBalance || 0
       const isSettled = l.status === "settled" || l.status === "closed" || balance <= 0
       return !isGroup && !isSettled
     })
@@ -252,7 +254,7 @@ export default function RepaymentsPage() {
                     "Unknown Client"
                   const loanDate = l.createdAt ? new Date(l.createdAt).toLocaleDateString() : "N/A"
                   const loanType = l.product ? l.product.toUpperCase() : (l.type ? l.type.toUpperCase() : "BUSINESS")
-                  const balance = l.balance ?? l.outstandingBalance ?? l.amount
+                  const balance = (l.outstanding_cents ? l.outstanding_cents / 100 : 0) || l.balance || l.outstandingBalance || (l.principal_cents ? l.principal_cents / 100 : 0)
                   return (
                     <option key={l._id} value={l._id}>
                       {clientName} — {loanType} — Balance: KES {Number(balance).toLocaleString()} — {loanDate}

@@ -274,12 +274,17 @@ export default function LoansPage() {
                     {sortedLoans.map((loan) => {
                       const clientName = typeof loan.client === "string" ? loan.client : loan.client?.name || loan.clientName || "—"
                       const created = loan.createdAt ? new Date(loan.createdAt).toISOString().slice(0, 10) : "—"
-                      // Try multiple possible amount field names
-                      const amount = (loan as any).amountKES || 
-                                    loan.amount || 
-                                    (loan as any).principal || 
-                                    (loan as any).loanAmount ||
-                                    ((loan as any).amountCents ? (loan as any).amountCents / 100 : 0)
+                      // The loan amount is stored in principal_cents, convert to KES
+                      const amount = (loan as any).principal_cents 
+                                    ? (loan as any).principal_cents / 100 
+                                    : ((loan as any).loanAmount || 
+                                       (loan as any).principalAmount ||
+                                       (loan as any).principal ||
+                                       (loan as any).requestedAmount ||
+                                       (loan as any).approvedAmount ||
+                                       loan.amount || 
+                                       0)
+                      
                       const loanProduct = (loan as any).product || "Business"
                       const isSelected = selectedIds.has(loan._id)
                       return (
